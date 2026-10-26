@@ -118,7 +118,7 @@ Log in to Claude Code with the account you want to save, then:
 | `cid config` | Show the profiles file, the Claude config directory, the credential backend and the language. |
 | `cid version` | Show the version. |
 
-`--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). Exit codes: `0` success, `1` runtime error, `2` usage error.
+The text output of `cid list` and `cid current` is meant for people and may change between versions; scripts should use `--json`. `--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). Exit codes: `0` success, `1` runtime error, `2` usage error.
 
 ### Token status
 
