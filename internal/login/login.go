@@ -97,6 +97,9 @@ func (r ExecRunner) Login(ctx context.Context, configDir string, opts Options) e
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, Args(opts)...)
 	cmd.Env = Env(os.Environ(), configDir)
+	// After the deadline kills claude, stop waiting on pipes a leftover child
+	// may still hold, so the timeout always returns.
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = r.Stdin, r.Stdout, r.Stderr
 	if cmd.Stdin == nil {
 		cmd.Stdin = os.Stdin
