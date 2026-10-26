@@ -2,17 +2,27 @@
 #
 # Usage:
 #   irm https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.ps1 | iex
-#   $env:CID_VERSION = '0.1.0'; irm <url> | iex     # pin a version
+#   $env:CID_VERSION = '<version>'; irm <url> | iex  # pin a version
 #
 # Environment:
 #   CID_VERSION      Version to install (default: latest release).
 #   CID_INSTALL_DIR  Install directory (default: %LOCALAPPDATA%\Programs\cid).
+#   CID_NO_MODIFY_PATH=1  Do not add the install directory to the user PATH.
 #   CID_VERIFY_ATTESTATION=0  Skip `gh attestation verify` even if gh exists.
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 $Repo = 'nicoarbelaez/claude-identity'
 $Bin = 'cid'
+
+# True when $Dir is an entry of the ';'-separated $PathList (case-insensitive, ignoring trailing '\').
+function Test-PathContains([string]$PathList, [string]$Dir) {
+    $want = $Dir.Trim().TrimEnd('\')
+    foreach ($entry in ($PathList -split ';')) {
+        if ($entry.Trim().TrimEnd('\') -ieq $want) { return $true }
+    }
+    return $false
+}
 
 switch ($env:PROCESSOR_ARCHITECTURE) {
     'AMD64' { $Arch = 'amd64' }
@@ -70,11 +80,19 @@ try {
     Copy-Item -Path (Join-Path $Work "$Bin.exe") -Destination (Join-Path $Dest "$Bin.exe") -Force
     Write-Host "Installed $Bin $Version to $(Join-Path $Dest "$Bin.exe")"
 
-    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    if (-not $userPath) { $userPath = '' }
-    if (($userPath -split ';') -notcontains $Dest) {
-        Write-Host 'Add it to your PATH (then restart the terminal):'
-        Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','User') + ';$Dest', 'User')"
+    if ($env:CID_NO_MODIFY_PATH -eq '1') {
+        if (-not (Test-PathContains $env:Path $Dest)) {
+            Write-Host "Add $Dest to your PATH to run '$Bin' from anywhere."
+        }
+    }
+    else {
+        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+        if (-not (Test-PathContains $userPath $Dest)) {
+            $newPath = if ($userPath) { $userPath.TrimEnd(';') + ';' + $Dest } else { $Dest }
+            [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+            Write-Host "Added $Dest to your user PATH. Restart open terminals (and Claude Code) to pick it up."
+        }
+        if (-not (Test-PathContains $env:Path $Dest)) { $env:Path = $env:Path.TrimEnd(';') + ';' + $Dest }
     }
 }
 finally {
