@@ -46,7 +46,7 @@ func TestCatalogParity(t *testing.T) {
 func TestUsageMentionsEveryCommand(t *testing.T) {
 	for _, lang := range []Lang{EN, ES} {
 		usage := T(lang, Usage)
-		for _, cmd := range []string{"cid list", "cid switch", "cid add", "cid remove", "cid relogin", "cid current", "cid config", "cid version", "cid help", "--json", "--force"} {
+		for _, cmd := range []string{"cid list", "cid switch", "cid add", "cid remove", "cid relogin", "cid current", "cid config", "cid uninstall", "cid version", "cid help", "--json", "--force"} {
 			if !strings.Contains(usage, cmd) {
 				t.Errorf("%s usage does not mention %q", lang, cmd)
 			}

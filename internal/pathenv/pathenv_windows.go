@@ -21,7 +21,7 @@ func (userPath) RemoveDir(dir string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("open user environment: %w", err)
 	}
-	defer k.Close()
+	defer func() { _ = k.Close() }()
 
 	// GetStringValue does not expand %VAR%, so other entries stay as written.
 	raw, kind, err := k.GetStringValue("Path")

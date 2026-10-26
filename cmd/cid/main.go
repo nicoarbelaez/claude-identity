@@ -10,6 +10,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/cli"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/pathenv"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
@@ -48,14 +49,23 @@ func wire(lang i18n.Lang) (cli.Deps, error) {
 	_, keychain := live.(*claudecfg.KeychainStore)
 	store := profile.NewStore(profilesPath)
 	lock := filepath.Join(filepath.Dir(profilesPath), "cid.lock")
+	kv := vault.NewKeyringVault()
+	exe, _ := os.Executable() // empty on failure: uninstall then skips the binary-specific steps
 	return cli.Deps{
 		Profiles: store,
-		Swap:     swap.New(store, vault.NewKeyringVault(), live, lock),
+		Swap:     swap.New(store, kv, live, lock),
 		Lang:     lang,
 		Config: cli.Config{
 			ProfilesPath: profilesPath,
 			ClaudeDir:    filepath.Dir(paths.Credentials),
 			Keychain:     keychain,
+		},
+		Uninstall: cli.UninstallDeps{
+			Vault:      kv,
+			PathEnv:    pathenv.New(),
+			LockPath:   lock,
+			Executable: exe,
+			GOOS:       runtime.GOOS,
 		},
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
