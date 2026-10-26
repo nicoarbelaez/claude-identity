@@ -26,6 +26,9 @@ var (
 
 var nameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,31}$`)
 
+// ValidName reports whether name is an acceptable profile name.
+func ValidName(name string) bool { return nameRE.MatchString(name) }
+
 // ConfigDirEnv overrides the cid config directory (used by tests and power users).
 const ConfigDirEnv = "CID_CONFIG_DIR"
 
@@ -58,7 +61,7 @@ type fileData struct {
 
 // Add creates a profile with the next free index. Indexes are never reused.
 func (s *Store) Add(name string) (Profile, error) {
-	if !nameRE.MatchString(name) {
+	if !ValidName(name) {
 		return Profile{}, ErrInvalidName
 	}
 	d, err := s.load()

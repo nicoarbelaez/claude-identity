@@ -31,6 +31,21 @@ var (
 	ErrVerify = errors.New("swap verification failed: live credentials do not match the target profile")
 )
 
+// ProfileExistsError means Add found a profile with the requested name that
+// holds a different account. Email is the account that profile holds.
+type ProfileExistsError struct{ Name, Email string }
+
+func (e *ProfileExistsError) Error() string {
+	return fmt.Sprintf("profile %q already holds %s; use --force to replace it", e.Name, e.Email)
+}
+
+// DuplicateAccountError means the live account is already saved as profile Name.
+type DuplicateAccountError struct{ Name string }
+
+func (e *DuplicateAccountError) Error() string {
+	return fmt.Sprintf("this account is already saved as %q", e.Name)
+}
+
 // Result describes a completed Switch.
 type Result struct {
 	From, To profile.Profile
@@ -85,18 +100,67 @@ func (s *Service) WithLock(fn func() error) error {
 	return fn()
 }
 
+// AddResult describes a completed Add.
+type AddResult struct {
+	Profile profile.Profile
+	// Replaced is true when force overwrote a profile that held another account.
+	Replaced bool
+}
+
 // Add captures the live login as profile name (see Capture) and marks it as
 // the active profile, since the captured login is by definition the live one.
-func (s *Service) Add(name string) (profile.Profile, error) {
-	var p profile.Profile
+// It never discards another account's saved tokens: it refuses when name holds
+// a different account (unless force) or when the live account is already saved
+// under another name.
+func (s *Service) Add(name string, force bool) (AddResult, error) {
+	var res AddResult
 	err := s.WithLock(func() error {
-		var err error
-		if p, err = s.capture(name); err != nil {
+		live, err := s.Live.Read()
+		if err != nil {
 			return err
 		}
+		replaced, err := s.checkAdd(name, live.Email(), force)
+		if err != nil {
+			return err
+		}
+		p, err := s.captureLive(name, live)
+		if err != nil {
+			return err
+		}
+		res = AddResult{Profile: p, Replaced: replaced}
 		return s.Profiles.SetActive(p.Name)
 	})
-	return p, err
+	return res, err
+}
+
+// checkAdd applies the Add guards for the live account email and reports
+// whether the add replaces a profile that held a different account.
+func (s *Service) checkAdd(name, email string, force bool) (replaced bool, err error) {
+	if !profile.ValidName(name) {
+		return false, profile.ErrInvalidName
+	}
+	if email == "" {
+		return false, ErrUnknownLiveAccount
+	}
+	ps, err := s.Profiles.List()
+	if err != nil {
+		return false, err
+	}
+	var existing *profile.Profile
+	for i, p := range ps {
+		if strings.EqualFold(p.Name, name) {
+			existing = &ps[i]
+		} else if strings.EqualFold(p.Email, email) {
+			return false, &DuplicateAccountError{Name: p.Name}
+		}
+	}
+	if existing == nil || strings.EqualFold(existing.Email, email) {
+		return false, nil
+	}
+	if !force {
+		return false, &ProfileExistsError{Name: existing.Name, Email: existing.Email}
+	}
+	return true, nil
 }
 
 // Remove deletes the profile identified by arg (index or name) together with
@@ -143,6 +207,10 @@ func (s *Service) capture(name string) (profile.Profile, error) {
 	if err != nil {
 		return profile.Profile{}, err
 	}
+	return s.captureLive(name, live)
+}
+
+func (s *Service) captureLive(name string, live credentials.Bundle) (profile.Profile, error) {
 	p, created, err := s.ensureProfile(name)
 	if err != nil {
 		return profile.Profile{}, err
