@@ -2,17 +2,50 @@
 #
 # Usage:
 #   irm https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.ps1 | iex
-#   $env:CID_VERSION = '0.1.0'; irm <url> | iex     # pin a version
+#   $env:CID_VERSION = '<version>'; irm <url> | iex  # pin a version
 #
 # Environment:
 #   CID_VERSION      Version to install (default: latest release).
 #   CID_INSTALL_DIR  Install directory (default: %LOCALAPPDATA%\Programs\cid).
+#   CID_NO_MODIFY_PATH=1  Do not add the install directory to the user PATH.
 #   CID_VERIFY_ATTESTATION=0  Skip `gh attestation verify` even if gh exists.
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 $Repo = 'nicoarbelaez/claude-identity'
 $Bin = 'cid'
+
+# True when $Dir is an entry of the ';'-separated $PathList (case-insensitive, ignoring trailing '\',
+# with %VAR% references expanded on both sides).
+function Test-PathContains([string]$PathList, [string]$Dir) {
+    $want = [Environment]::ExpandEnvironmentVariables($Dir).Trim().TrimEnd('\')
+    foreach ($entry in ($PathList -split ';')) {
+        if ([Environment]::ExpandEnvironmentVariables($entry).Trim().TrimEnd('\') -ieq $want) { return $true }
+    }
+    return $false
+}
+
+# Append $Dir to the user PATH in HKCU, keeping %VAR% entries unexpanded. Returns $false if already present.
+function Add-ToUserPath([string]$Dir) {
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    try {
+        $raw = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if (Test-PathContains $raw $Dir) { return $false }
+        $new = if ($raw) { $raw.TrimEnd(';') + ';' + $Dir } else { $Dir }
+        $kind = [Microsoft.Win32.RegistryValueKind]::String
+        if ($raw -like '*%*') { $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString }
+        elseif ($key.GetValueNames() -contains 'Path') { $kind = $key.GetValueKind('Path') }
+        $key.SetValue('Path', $new, $kind)
+    }
+    finally { $key.Close() }
+    # Tell running programs (e.g. Explorer) that the environment changed.
+    if (-not ('CidNative.Env' -as [type])) {
+        Add-Type -Namespace CidNative -Name Env -MemberDefinition '[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
+    }
+    $res = [UIntPtr]::Zero
+    [void][CidNative.Env]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res)
+    return $true
+}
 
 switch ($env:PROCESSOR_ARCHITECTURE) {
     'AMD64' { $Arch = 'amd64' }
@@ -70,11 +103,22 @@ try {
     Copy-Item -Path (Join-Path $Work "$Bin.exe") -Destination (Join-Path $Dest "$Bin.exe") -Force
     Write-Host "Installed $Bin $Version to $(Join-Path $Dest "$Bin.exe")"
 
-    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    if (-not $userPath) { $userPath = '' }
-    if (($userPath -split ';') -notcontains $Dest) {
-        Write-Host 'Add it to your PATH (then restart the terminal):'
-        Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','User') + ';$Dest', 'User')"
+    if ($env:CID_NO_MODIFY_PATH -eq '1') {
+        if (-not (Test-PathContains $env:Path $Dest)) {
+            Write-Host "Add $Dest to your PATH to run '$Bin' from anywhere."
+        }
+    }
+    else {
+        try {
+            if (Add-ToUserPath $Dest) {
+                Write-Host "Added $Dest to your user PATH. Restart open terminals (and Claude Code) to pick it up."
+            }
+        }
+        catch {
+            Write-Warning "Could not update your PATH: $($_.Exception.Message)"
+            Write-Host "Add $Dest to your PATH manually to run '$Bin' from anywhere."
+        }
+        if (-not (Test-PathContains $env:Path $Dest)) { $env:Path = $env:Path.TrimEnd(';') + ';' + $Dest }
     }
 }
 finally {

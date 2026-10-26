@@ -3,7 +3,7 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.sh | sh
-#   sh install.sh [VERSION]            # e.g. 0.1.0 or v0.1.0
+#   sh install.sh [VERSION]            # e.g. 1.2.3 or v1.2.3
 #
 # Environment:
 #   CID_VERSION      Version to install (default: latest release).
@@ -93,5 +93,14 @@ info "Installed $BIN $version to $dest/$BIN"
 
 case ":$PATH:" in
   *":$dest:"*) ;;
-  *) info "Add it to your PATH:  export PATH=\"$dest:\$PATH\"" ;;
+  *)
+    info ""
+    info "$dest is not on your PATH. Add it, then restart your terminal (and Claude Code):"
+    case "$(basename "${SHELL:-}")" in
+      fish) info "  fish_add_path \"$dest\"" ;;
+      zsh) info "  echo 'export PATH=\"$dest:\$PATH\"' >> ~/.zshrc" ;;
+      bash) info "  echo 'export PATH=\"$dest:\$PATH\"' >> ~/.bashrc" ;;
+      *) info "  export PATH=\"$dest:\$PATH\"" ;;
+    esac
+    ;;
 esac

@@ -2,20 +2,18 @@
 
 Keep several Anthropic accounts for Claude Code and hot-swap between them inside a running session, without losing context.
 
-> Status: **pre-alpha**. Nothing is usable yet. The interface below is a plan, not a promise.
-
 ## Why
 
 Claude Code supports one logged-in account at a time. Switching normally means logging out, logging in again, and often restarting the session. `claude-identity` stores the credentials of inactive accounts in your operating system keyring and swaps the active one in place, so the same `~/.claude` directory and the same conversation keep working.
 
-## How it works (planned)
+## How it works
 
 - A single `~/.claude` directory stays in use.
 - Credentials of inactive accounts (the credentials file on Windows/Linux, the `Claude Code-credentials` Keychain item on macOS, plus the `oauthAccount` block of `~/.claude.json`) live in the OS keyring: Windows Credential Manager, macOS Keychain, or Linux Secret Service.
 - When a token expires, Claude Code refreshes it. If that fails, `cid` guides you through `/login` and recaptures the new credentials into the profile.
 - `cid` never calls Anthropic OAuth endpoints itself.
 
-## Planned usage
+## Plugin commands
 
 The repository is also a Claude Code plugin marketplace. The plugin provides:
 
@@ -28,13 +26,7 @@ The same operations are available from the CLI binary `cid`. Supported platforms
 
 ## Installation
 
-### CLI binary
-
-macOS / Linux:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.sh | sh
-```
+### 1. Install `cid`
 
 Windows (PowerShell):
 
@@ -42,32 +34,54 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.ps1 | iex
 ```
 
-The scripts download the release archive for your OS and architecture, verify its SHA-256 against `checksums.txt` (aborting on mismatch), and install `cid` to `~/.local/bin` (Windows: `%LOCALAPPDATA%\Programs\cid`). If the GitHub CLI is installed, they also run `gh attestation verify`. Pin a version with `CID_VERSION=0.1.0`. See [docs/RELEASING.md](docs/RELEASING.md).
+macOS / Linux:
 
-With Go:
+```sh
+curl -fsSL https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.sh | sh
+```
+
+Or with Go:
 
 ```sh
 go install github.com/nicoarbelaez/claude-identity/cmd/cid@latest
 ```
 
-### Claude Code plugin
+The scripts download the release archive for your OS and architecture, verify its SHA-256 against `checksums.txt` (aborting on mismatch), and install `cid` to `%LOCALAPPDATA%\Programs\cid` (Windows) or `~/.local/bin` (macOS / Linux). If the GitHub CLI is installed, they also run `gh attestation verify`.
 
-Install the Claude Code plugin (Claude Code 2.1.275 or later):
+- Windows: the install directory is added to your user `PATH` automatically. Set `CID_NO_MODIFY_PATH=1` to skip that.
+- macOS / Linux: if the directory is not on your `PATH`, the script prints the line to add for your shell.
+- Pin a version with `CID_VERSION=<version>`; change the directory with `CID_INSTALL_DIR`.
 
+See [docs/RELEASING.md](docs/RELEASING.md).
+
+### 2. Verify
+
+Open a new terminal and run:
+
+```sh
+cid version
 ```
-/plugin install account-switch --marketplace nicoarbelaez/claude-identity
-```
 
-Or add the marketplace first, then install:
+### 3. Install the Claude Code plugin
+
+In Claude Code (2.1.275 or later):
 
 ```
 /plugin marketplace add nicoarbelaez/claude-identity
 /plugin install account-switch@nicoarbelaez-tools
 ```
 
-The plugin needs the `cid` binary on your `PATH` (see [CLI binary](#cli-binary)). To try it from a local checkout without installing, run `claude --plugin-dir ./plugin`.
+Then restart Claude Code so it picks up `cid` on your `PATH`. Plugin commands are namespaced as `/account-switch:account`; `/account` works when the name is not ambiguous.
 
-#### Using the plugin
+### 4. First use
+
+1. Run `/login` with your first account, then `/account add a`.
+2. Run `/login` with your second account, then `/account add b`.
+3. Switch with `/account 1` or `/account b`.
+
+To try the plugin from a local checkout without installing, run `claude --plugin-dir ./plugin`.
+
+## Using the plugin
 
 The plugin provides one skill, `account`, whose command is answered by a hook that runs `cid` (see [Instant responses](#instant-responses)). Plugin skills are namespaced, so the full name is `/account-switch:account`. The bare `/account` also works as long as no other command uses that name.
 
@@ -81,7 +95,7 @@ The plugin provides one skill, `account`, whose command is answered by a hook th
 
 `list`, `remove`, `current` and `version` are forwarded too. Claude never runs these on its own (`disable-model-invocation: true`); you must type them.
 
-#### Instant responses
+### Instant responses
 
 The plugin registers a `UserPromptExpansion` hook that runs `cid hook` (no shell) whenever you type `/account`. The hook runs `cid` in-process and shows its exact output to you, without a model turn, so the answer is immediate and costs no tokens. It only answers when `cid` succeeds. Arguments are limited to profile names or numbers and `--json`.
 
