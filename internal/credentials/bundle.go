@@ -42,6 +42,39 @@ func (b Bundle) ExpiresAt() int64 {
 	return o.ExpiresAt
 }
 
+// Status is a local, best-effort view of whether a bundle can still sign in.
+type Status string
+
+// Status values. They are stable strings used in JSON output.
+const (
+	StatusOK            Status = "ok"
+	StatusAccessExpired Status = "access_expired"
+	StatusNeedsLogin    Status = "needs_login"
+	StatusUnknown       Status = "unknown"
+)
+
+// Status classifies the bundle at time now. It only checks that a refresh
+// token is present, never its value or validity, so a stale stored copy can
+// still report ok.
+func (b Bundle) Status(now time.Time) Status {
+	var o struct {
+		RefreshToken string `json:"refreshToken"`
+		ExpiresAt    int64  `json:"expiresAt"`
+	}
+	if json.Unmarshal(b.ClaudeAIOAuth, &o) != nil {
+		return StatusUnknown
+	}
+	switch {
+	case o.RefreshToken == "":
+		return StatusNeedsLogin
+	case o.ExpiresAt <= 0:
+		return StatusUnknown
+	case o.ExpiresAt <= now.UnixMilli():
+		return StatusAccessExpired
+	}
+	return StatusOK
+}
+
 // Marshal serializes the bundle. It fails if OAuth credentials are absent.
 func (b Bundle) Marshal() ([]byte, error) {
 	if len(b.ClaudeAIOAuth) == 0 {

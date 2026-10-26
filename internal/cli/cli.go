@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
+	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
@@ -38,6 +39,7 @@ type Swapper interface {
 	Switch(arg string) (swap.Result, error)
 	Add(name string, force bool) (swap.AddResult, error)
 	Remove(arg string) (profile.Profile, error)
+	Status(name string, active bool) credentials.Status
 }
 
 // Config describes where cid and Claude Code keep their data (for `cid config`).
@@ -76,6 +78,8 @@ func Run(d Deps, args []string) int {
 		return a.add(rest)
 	case "remove":
 		return a.remove(rest)
+	case "relogin":
+		return a.relogin(rest)
 	case "current":
 		return a.current(rest)
 	case "config":
@@ -152,7 +156,8 @@ func (a *app) list(args []string) int {
 	if asJSON {
 		out := make([]jsonProfile, 0, len(ps))
 		for _, p := range ps {
-			out = append(out, toJSON(p, p.Name == activeName))
+			active := p.Name == activeName
+			out = append(out, toJSON(p, active, a.Swap.Status(p.Name, active)))
 		}
 		return a.writeJSON(out)
 	}
@@ -163,13 +168,28 @@ func (a *app) list(args []string) int {
 	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileListHeader))
 	for _, p := range ps {
 		marker := " "
-		if p.Name == activeName {
+		active := p.Name == activeName
+		if active {
 			marker = "*"
 		}
-		line := fmt.Sprintf("%s %d  %s  %s", marker, p.Index, p.Name, p.Email)
+		status := a.statusLabel(a.Swap.Status(p.Name, active))
+		line := fmt.Sprintf("%s %d  %s  %s  %s", marker, p.Index, p.Name, p.Email, status)
 		a.printf(a.Stdout, "%s\n", strings.TrimRight(line, " "))
 	}
 	return exitOK
+}
+
+// statusLabel returns the localized, short label for a token status.
+func (a *app) statusLabel(s credentials.Status) string {
+	switch s {
+	case credentials.StatusOK:
+		return a.t(i18n.StatusOK)
+	case credentials.StatusAccessExpired:
+		return a.t(i18n.StatusAccessExpired)
+	case credentials.StatusNeedsLogin:
+		return a.t(i18n.StatusNeedsLogin)
+	}
+	return a.t(i18n.StatusUnknown)
 }
 
 // activeName returns the active profile name, or "" when none is recorded.
@@ -199,13 +219,33 @@ func (a *app) current(args []string) int {
 		if none {
 			return a.writeJSON(nil)
 		}
-		return a.writeJSON(toJSON(p, true))
+		return a.writeJSON(toJSON(p, true, a.Swap.Status(p.Name, true)))
 	}
 	if none {
 		a.printf(a.Stdout, "%s\n", a.t(i18n.CurrentNone))
 		return exitOK
 	}
 	a.printf(a.Stdout, "%s\n", a.t(i18n.CurrentActive, p.Name, p.Email))
+	a.printf(a.Stdout, "%s\n", a.t(i18n.CurrentStatus, a.statusLabel(a.Swap.Status(p.Name, true))))
+	return exitOK
+}
+
+// relogin prints the manual steps to refresh a profile's login. It never
+// touches credentials.
+func (a *app) relogin(args []string) int {
+	_, pos, ok := parse("relogin", args, false, 1)
+	if !ok {
+		return a.usageError("")
+	}
+	p, err := a.Profiles.Resolve(pos[0])
+	if err != nil {
+		return a.fail(err, pos[0])
+	}
+	who := p.Email
+	if who == "" {
+		who = p.Name
+	}
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ReloginSteps, who, p.Name))
 	return exitOK
 }
 
@@ -314,10 +354,11 @@ type jsonProfile struct {
 	Name   string `json:"name"`
 	Email  string `json:"email"`
 	Active bool   `json:"active"`
+	Status string `json:"status"`
 }
 
-func toJSON(p profile.Profile, active bool) jsonProfile {
-	return jsonProfile{Index: p.Index, Name: p.Name, Email: p.Email, Active: active}
+func toJSON(p profile.Profile, active bool, status credentials.Status) jsonProfile {
+	return jsonProfile{Index: p.Index, Name: p.Name, Email: p.Email, Active: active, Status: string(status)}
 }
 
 func (a *app) writeJSON(v any) int {

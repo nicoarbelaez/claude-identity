@@ -79,3 +79,28 @@ func TestUnmarshalErrorDoesNotLeakSecret(t *testing.T) {
 		t.Fatalf("error leaks payload: %v", err)
 	}
 }
+
+func TestBundleStatus(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	tests := []struct {
+		name  string
+		oauth string
+		want  Status
+	}{
+		{"valid", `{"refreshToken":"r","expiresAt":2000000}`, StatusOK},
+		{"access expired", `{"refreshToken":"r","expiresAt":500000}`, StatusAccessExpired},
+		{"empty refresh token, future expiry", `{"refreshToken":"","expiresAt":2000000}`, StatusNeedsLogin},
+		{"missing refresh token", `{"expiresAt":2000000}`, StatusNeedsLogin},
+		{"missing expiry", `{"refreshToken":"r"}`, StatusUnknown},
+		{"invalid expiry", `{"refreshToken":"r","expiresAt":"soon"}`, StatusUnknown},
+		{"not json", `nope`, StatusUnknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := Bundle{ClaudeAIOAuth: json.RawMessage(tt.oauth)}
+			if got := b.Status(now); got != tt.want {
+				t.Errorf("Status() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

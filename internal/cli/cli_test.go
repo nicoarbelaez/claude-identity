@@ -101,8 +101,8 @@ func TestListShowsIndexNameEmailAndActiveMarker(t *testing.T) {
 	}
 	want := []string{
 		r.msg(i18n.ProfileListHeader),
-		"  1  a  a@example.com",
-		"* 2  b  b@example.com",
+		"  1  a  a@example.com  " + r.msg(i18n.StatusAccessExpired),
+		"* 2  b  b@example.com  " + r.msg(i18n.StatusAccessExpired),
 	}
 	got := strings.Split(strings.TrimRight(r.stdout.String(), "\n"), "\n")
 	if strings.Join(got, "|") != strings.Join(want, "|") {
@@ -123,7 +123,7 @@ func TestListJSON(t *testing.T) {
 	if err := json.Unmarshal(r.stdout.Bytes(), &got); err != nil {
 		t.Fatalf("invalid json %q: %v", r.stdout, err)
 	}
-	want := []jsonProfile{{1, "a", "a@example.com", false}, {2, "b", "b@example.com", true}}
+	want := []jsonProfile{{1, "a", "a@example.com", false, "access_expired"}, {2, "b", "b@example.com", true, "access_expired"}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
@@ -391,8 +391,55 @@ func TestCurrent(t *testing.T) {
 	if err := json.Unmarshal(r.stdout.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got != (jsonProfile{2, "b", "b@example.com", true}) {
+	if got != (jsonProfile{2, "b", "b@example.com", true, "access_expired"}) {
 		t.Errorf("got %+v", got)
+	}
+	if out := r.run("current"); out != 0 || !strings.Contains(r.stdout.String(), r.msg(i18n.CurrentStatus, r.msg(i18n.StatusAccessExpired))) {
+		t.Errorf("current status line missing: %q", r.stdout)
+	}
+}
+
+func TestListStatusFollowsLiveAndVault(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles() // b is live and active; both stored with an expired access token
+	oauth := json.RawMessage(`{"accessToken":"x","refreshToken":"","expiresAt":4102444800000}`)
+	acct, _ := json.Marshal(map[string]any{"emailAddress": "b@example.com"})
+	if err := r.live.Write(credentials.Bundle{ClaudeAIOAuth: oauth, OAuthAccount: acct}); err != nil {
+		t.Fatal(err)
+	}
+	if code := r.run("list", "--json"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	var got []jsonProfile
+	if err := json.Unmarshal(r.stdout.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Status != "access_expired" || got[1].Status != "needs_login" {
+		t.Errorf("statuses = %q, %q", got[0].Status, got[1].Status)
+	}
+	r.deps.Lang = i18n.ES
+	r.run("list")
+	if !strings.Contains(r.stdout.String(), i18n.T(i18n.ES, i18n.StatusNeedsLogin)) {
+		t.Errorf("spanish status missing: %q", r.stdout)
+	}
+}
+
+func TestRelogin(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	for _, ref := range []string{"a", "1"} {
+		if code := r.run("relogin", ref); code != 0 {
+			t.Fatalf("%s: exit %d: %s", ref, code, r.stderr)
+		}
+		if want := r.msg(i18n.ReloginSteps, "a@example.com", "a"); !strings.Contains(r.stdout.String(), want) {
+			t.Errorf("%s: stdout = %q, want %q", ref, r.stdout, want)
+		}
+	}
+	if code := r.run("relogin", "nope"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.UnknownProfile, "nope")) {
+		t.Errorf("unknown: exit %d, stderr %q", code, r.stderr)
+	}
+	if code := r.run("relogin"); code != 2 {
+		t.Errorf("missing arg: exit %d, want 2", code)
 	}
 }
 
@@ -448,6 +495,7 @@ type fakeSwap struct {
 func (f fakeSwap) Switch(string) (swap.Result, error)       { return f.switchRes, f.err }
 func (f fakeSwap) Add(string, bool) (swap.AddResult, error) { return swap.AddResult{}, f.err }
 func (f fakeSwap) Remove(string) (profile.Profile, error)   { return profile.Profile{}, f.err }
+func (f fakeSwap) Status(string, bool) credentials.Status   { return credentials.StatusUnknown }
 
 func TestRuntimeErrorMapping(t *testing.T) {
 	secret := "sk-ant-oat01-SECRET"
