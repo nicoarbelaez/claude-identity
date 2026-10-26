@@ -142,7 +142,10 @@ func (a *app) list(args []string) int {
 	if err != nil {
 		return a.fail(err, "")
 	}
-	activeName := a.activeName()
+	activeName, err := a.activeName()
+	if err != nil {
+		return a.fail(err, "")
+	}
 	if asJSON {
 		out := make([]jsonProfile, 0, len(ps))
 		for _, p := range ps {
@@ -167,12 +170,16 @@ func (a *app) list(args []string) int {
 }
 
 // activeName returns the active profile name, or "" when none is recorded.
-func (a *app) activeName() string {
+// Any error other than profile.ErrNoActive is returned to the caller.
+func (a *app) activeName() (string, error) {
 	p, err := a.Profiles.Active()
-	if err != nil {
-		return ""
+	if errors.Is(err, profile.ErrNoActive) {
+		return "", nil
 	}
-	return p.Name
+	if err != nil {
+		return "", err
+	}
+	return p.Name, nil
 }
 
 func (a *app) current(args []string) int {
@@ -247,7 +254,11 @@ func (a *app) remove(args []string) int {
 	}
 	p, err := a.Swap.Remove(pos[0])
 	if err != nil {
-		return a.fail(err, pos[0])
+		ref := pos[0]
+		if errors.Is(err, swap.ErrRemoveActive) && p.Name != "" {
+			ref = p.Name
+		}
+		return a.fail(err, ref)
 	}
 	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileRemoved, p.Name))
 	return exitOK
