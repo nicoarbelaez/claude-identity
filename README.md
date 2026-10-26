@@ -26,9 +26,31 @@ The repository is also a Claude Code plugin marketplace. The plugin provides:
 
 The same operations are available from the CLI binary `cid`. Supported platforms: Windows, macOS, Linux. Languages: English and Spanish.
 
-## Installation (planned)
+## Installation
 
-Signed release binaries from GitHub Releases, `go install github.com/nicoarbelaez/claude-identity/cmd/cid@latest`, and the Claude Code plugin marketplace. An install script may follow.
+### CLI binary
+
+macOS / Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/nicoarbelaez/claude-identity/main/scripts/install.ps1 | iex
+```
+
+The scripts download the release archive for your OS and architecture, verify its SHA-256 against `checksums.txt` (aborting on mismatch), and install `cid` to `~/.local/bin` (Windows: `%LOCALAPPDATA%\Programs\cid`). If the GitHub CLI is installed, they also run `gh attestation verify`. Pin a version with `CID_VERSION=0.1.0`. See [docs/RELEASING.md](docs/RELEASING.md).
+
+With Go:
+
+```sh
+go install github.com/nicoarbelaez/claude-identity/cmd/cid@latest
+```
+
+### Claude Code plugin
 
 Install the Claude Code plugin (Claude Code 2.1.275 or later):
 
