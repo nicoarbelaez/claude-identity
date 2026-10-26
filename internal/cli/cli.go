@@ -36,7 +36,7 @@ type ProfileReader interface {
 // vault, and profiles.json under the cross-process lock.
 type Swapper interface {
 	Switch(arg string) (swap.Result, error)
-	Add(name string) (profile.Profile, error)
+	Add(name string, force bool) (swap.AddResult, error)
 	Remove(arg string) (profile.Profile, error)
 }
 
@@ -239,11 +239,11 @@ func (a *app) add(args []string) int {
 	if !ok {
 		return a.usageError("")
 	}
-	p, err := a.Swap.Add(pos[0])
+	res, err := a.Swap.Add(pos[0], false)
 	if err != nil {
 		return a.fail(err, pos[0])
 	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileAdded, p.Name))
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileAdded, res.Profile.Name))
 	return exitOK
 }
 

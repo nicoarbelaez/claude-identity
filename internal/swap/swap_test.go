@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -288,10 +289,11 @@ func (dropWrites) Write(credentials.Bundle) error { return nil }
 func TestAddCapturesLiveLoginAndMarksItActive(t *testing.T) {
 	e := twoAccounts(t) // b is live and active
 	e.login(t, bundle("c@example.com", "tok-c1", 3000))
-	p, err := e.svc.Add("c")
+	res, err := e.svc.Add("c", false)
 	if err != nil {
 		t.Fatal(err)
 	}
+	p := res.Profile
 	if p.Name != "c" || p.Email != "c@example.com" {
 		t.Fatalf("profile = %+v", p)
 	}
@@ -303,9 +305,97 @@ func TestAddCapturesLiveLoginAndMarksItActive(t *testing.T) {
 	}
 }
 
+// assertUntouched checks that a refused Add left profile name, its vault entry
+// and the active profile exactly as they were.
+func assertUntouched(t *testing.T, e *env, name, email string, expires int64, active string) {
+	t.Helper()
+	got, err := e.prof.Resolve(name)
+	if err != nil || got.Email != email {
+		t.Errorf("profile %s = %+v, %v; want email %s", name, got, err, email)
+	}
+	if e.stored(t, name).ExpiresAt() != expires {
+		t.Errorf("vault entry %s was overwritten", name)
+	}
+	if act, _ := e.prof.Active(); act.Name != active {
+		t.Errorf("active = %q, want %q", act.Name, active)
+	}
+}
+
+func TestAddNewNameForUnsavedAccount(t *testing.T) {
+	e := twoAccounts(t)
+	e.login(t, bundle("c@example.com", "tok-c1", 3000))
+	res, err := e.svc.Add("c", false)
+	if err != nil || res.Replaced {
+		t.Fatalf("res = %+v, err = %v", res, err)
+	}
+}
+
+func TestAddExistingNameSameAccountRefreshes(t *testing.T) {
+	e := twoAccounts(t)
+	e.login(t, bundle("A@Example.com", "tok-a2", 5000))
+	res, err := e.svc.Add("a", false)
+	if err != nil || res.Replaced {
+		t.Fatalf("res = %+v, err = %v", res, err)
+	}
+	if e.stored(t, "a").ExpiresAt() != 5000 {
+		t.Error("tokens were not refreshed")
+	}
+	if act, _ := e.prof.Active(); act.Name != "a" {
+		t.Errorf("active = %q, want a", act.Name)
+	}
+}
+
+func TestAddExistingNameDifferentAccountIsBlocked(t *testing.T) {
+	e := twoAccounts(t)
+	e.login(t, bundle("c@example.com", "tok-c1", 3000))
+	_, err := e.svc.Add("a", false)
+	var exists *ProfileExistsError
+	if !errors.As(err, &exists) || exists.Name != "a" || exists.Email != "a@example.com" {
+		t.Fatalf("want ProfileExistsError for a@example.com, got %v", err)
+	}
+	if strings.Contains(err.Error(), "tok-") {
+		t.Error("error leaks token data")
+	}
+	assertUntouched(t, e, "a", "a@example.com", 1000, "b")
+}
+
+func TestAddForceReplacesDifferentAccount(t *testing.T) {
+	e := twoAccounts(t)
+	e.login(t, bundle("c@example.com", "tok-c1", 3000))
+	res, err := e.svc.Add("a", true)
+	if err != nil || !res.Replaced {
+		t.Fatalf("res = %+v, err = %v", res, err)
+	}
+	assertUntouched(t, e, "a", "c@example.com", 3000, "a")
+}
+
+func TestAddAccountAlreadySavedUnderOtherNameIsBlocked(t *testing.T) {
+	for _, force := range []bool{false, true} {
+		e := twoAccounts(t) // b@example.com is live and saved as b
+		_, err := e.svc.Add("a", force)
+		var dup *DuplicateAccountError
+		if !errors.As(err, &dup) || dup.Name != "b" {
+			t.Fatalf("force=%v: want DuplicateAccountError for b, got %v", force, err)
+		}
+		assertUntouched(t, e, "a", "a@example.com", 1000, "b")
+		if ps, _ := e.prof.List(); len(ps) != 2 {
+			t.Errorf("force=%v: profiles = %d, want 2", force, len(ps))
+		}
+	}
+}
+
+func TestAddLiveAccountWithoutEmailIsRefused(t *testing.T) {
+	e := twoAccounts(t)
+	e.login(t, bundle("", "tok-x", 3000))
+	if _, err := e.svc.Add("a", true); !errors.Is(err, ErrUnknownLiveAccount) {
+		t.Fatalf("want ErrUnknownLiveAccount, got %v", err)
+	}
+	assertUntouched(t, e, "a", "a@example.com", 1000, "b")
+}
+
 func TestAddInvalidNameDoesNotChangeActive(t *testing.T) {
 	e := twoAccounts(t)
-	if _, err := e.svc.Add("Bad Name"); !errors.Is(err, profile.ErrInvalidName) {
+	if _, err := e.svc.Add("Bad Name", false); !errors.Is(err, profile.ErrInvalidName) {
 		t.Fatalf("want ErrInvalidName, got %v", err)
 	}
 	if act, _ := e.prof.Active(); act.Name != "b" {
@@ -315,7 +405,7 @@ func TestAddInvalidNameDoesNotChangeActive(t *testing.T) {
 
 func TestAddWithoutLiveLogin(t *testing.T) {
 	e := newEnv(t)
-	if _, err := e.svc.Add("a"); !errors.Is(err, claudecfg.ErrNoCredentials) {
+	if _, err := e.svc.Add("a", false); !errors.Is(err, claudecfg.ErrNoCredentials) {
 		t.Fatalf("want ErrNoCredentials, got %v", err)
 	}
 }
@@ -375,7 +465,7 @@ func TestAddAndRemoveHonorLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = other.Unlock() }()
-	if _, err := e.svc.Add("c"); !errors.Is(err, ErrLockTimeout) {
+	if _, err := e.svc.Add("c", false); !errors.Is(err, ErrLockTimeout) {
 		t.Fatalf("Add: want ErrLockTimeout, got %v", err)
 	}
 	if _, err := e.svc.Remove("a"); !errors.Is(err, ErrLockTimeout) {

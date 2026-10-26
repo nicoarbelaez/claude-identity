@@ -379,9 +379,9 @@ type fakeSwap struct {
 	err       error
 }
 
-func (f fakeSwap) Switch(string) (swap.Result, error)     { return f.switchRes, f.err }
-func (f fakeSwap) Add(string) (profile.Profile, error)    { return profile.Profile{}, f.err }
-func (f fakeSwap) Remove(string) (profile.Profile, error) { return profile.Profile{}, f.err }
+func (f fakeSwap) Switch(string) (swap.Result, error)       { return f.switchRes, f.err }
+func (f fakeSwap) Add(string, bool) (swap.AddResult, error) { return swap.AddResult{}, f.err }
+func (f fakeSwap) Remove(string) (profile.Profile, error)   { return profile.Profile{}, f.err }
 
 func TestRuntimeErrorMapping(t *testing.T) {
 	secret := "sk-ant-oat01-SECRET"

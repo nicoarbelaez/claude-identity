@@ -55,6 +55,14 @@ func TestAdd(t *testing.T) {
 	}
 }
 
+func TestValidName(t *testing.T) {
+	for name, want := range map[string]bool{"isa": true, "1abc": true, "work.acct_1-b": true, "": false, "Isa": false, "a b": false, "-x": false} {
+		if got := ValidName(name); got != want {
+			t.Errorf("ValidName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
 func TestAddCaseInsensitiveDuplicate(t *testing.T) {
 	// Validation forbids uppercase, so seed a mixed-case name by hand.
 	s, path := newTestStore(t)
