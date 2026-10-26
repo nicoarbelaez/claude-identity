@@ -43,6 +43,19 @@ func TestCatalogParity(t *testing.T) {
 	}
 }
 
+// numberedStep matches a line that starts a numbered step ("1. ", "2) ").
+var numberedStep = regexp.MustCompile(`(?m)^\s*\d+[.)]\s`)
+
+func TestNoMessageHasNumberedSteps(t *testing.T) {
+	for lang, cat := range map[Lang]map[Key]string{EN: catalogEN, ES: catalogES} {
+		for k, msg := range cat {
+			if numberedStep.MatchString(msg) {
+				t.Errorf("%s message %q is a numbered step list: %q", lang, k, msg)
+			}
+		}
+	}
+}
+
 func TestUsageMentionsEveryCommand(t *testing.T) {
 	for _, lang := range []Lang{EN, ES} {
 		usage := T(lang, Usage)

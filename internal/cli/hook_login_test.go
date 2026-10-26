@@ -1,40 +1,130 @@
 package cli
 
 import (
+	"encoding/json"
+	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/login"
 )
 
-func TestHookNeverStartsLoginForAddAndRelogin(t *testing.T) {
-	tests := []struct {
-		name string
-		args string
-		want func(r *rig) string
-	}{
-		{"add", "add c", func(r *rig) string { return r.msg(i18n.HookAddNeedsTerminal, "c", "c") }},
-		{"add with flags", "add --console c --force", func(r *rig) string { return r.msg(i18n.HookAddNeedsTerminal, "c", "c") }},
-		{"relogin by name", "relogin a", func(r *rig) string { return r.msg(i18n.HookReloginTerminal, "a", "a") }},
-		{"relogin by index", "relogin 1", func(r *rig) string { return r.msg(i18n.HookReloginTerminal, "a", "a") }},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+var numberedStep = regexp.MustCompile(`(?m)^\s*\d+[.)]\s`)
+
+func TestHookAddRunsLoginAndBlocksWithResult(t *testing.T) {
+	for _, args := range []string{"add c", "add --console c --force"} {
+		t.Run(args, func(t *testing.T) {
 			r := newRig(t)
 			r.twoProfiles()
 			f := loginAs(t, "c@example.com", "tok-c")
 			r.useLogin(f)
-			b := r.block(expansion("account", tt.args))
-			if !strings.Contains(b.Reason, tt.want(r)) {
-				t.Errorf("reason = %q, want %q", b.Reason, tt.want(r))
+			b := r.block(expansion("account", args))
+			if !strings.Contains(b.Reason, r.msg(i18n.ProfileAdded, "c")) {
+				t.Errorf("reason = %q, want the added message", b.Reason)
 			}
-			if len(f.Calls) != 0 {
-				t.Error("the hook started a login")
+			if len(f.Calls) != 1 {
+				t.Fatalf("login calls = %d, want 1", len(f.Calls))
 			}
-			if _, err := r.prof.Resolve("c"); err == nil {
-				t.Error("the hook saved a profile")
+			if _, err := r.prof.Resolve("c"); err != nil {
+				t.Errorf("profile c not saved: %v", err)
+			}
+			dirGone(t, f)
+		})
+	}
+}
+
+func TestHookReloginRunsLogin(t *testing.T) {
+	for _, ref := range []string{"a", "1"} {
+		t.Run(ref, func(t *testing.T) {
+			r := newRig(t)
+			r.twoProfiles()
+			f := loginAs(t, "a@example.com", "tok-a2")
+			r.useLogin(f)
+			b := r.block(expansion("account", "relogin "+ref))
+			if !strings.Contains(b.Reason, r.msg(i18n.ReloginDone, "a")) {
+				t.Errorf("reason = %q, want the relogin message", b.Reason)
+			}
+			if len(f.Calls) != 1 || f.Calls[0].Opts.Email != "a@example.com" {
+				t.Errorf("calls = %+v, want one call with the profile email", f.Calls)
 			}
 		})
+	}
+}
+
+func TestHookLoginFailurePassesContextWithoutBlocking(t *testing.T) {
+	failures := map[string]error{
+		"failed":         errors.New("exit status 1"),
+		"timeout":        login.ErrTimeout,
+		"claude missing": login.ErrNotInstalled,
+	}
+	for name, loginErr := range failures {
+		t.Run(name, func(t *testing.T) {
+			r := newRig(t)
+			r.twoProfiles()
+			f := &login.FakeRunner{Fn: func(string, login.Options) error { return loginErr }}
+			r.useLogin(f)
+			c := r.context(expansion("account", "add c"))
+			ctx := c.Specific.Context
+			for _, want := range []string{"already ran", "do not list steps", "retry"} {
+				if !strings.Contains(strings.ToLower(ctx), want) {
+					t.Errorf("context = %q, missing %q", ctx, want)
+				}
+			}
+			if !strings.Contains(ctx, r.msg(i18n.AddFallback, "c")) {
+				t.Errorf("context = %q, missing the one-line retry", ctx)
+			}
+			if numberedStep.MatchString(ctx) {
+				t.Errorf("context has a numbered step list: %q", ctx)
+			}
+			if len(f.Calls) != 1 {
+				t.Errorf("login calls = %d, want 1", len(f.Calls))
+			}
+		})
+	}
+}
+
+func TestHookReloginEmailMismatchPassesContext(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	r.useLogin(loginAs(t, "other@example.com", "tok-x"))
+	c := r.context(expansion("account", "relogin a"))
+	if !strings.Contains(c.Specific.Context, "other@example.com") || numberedStep.MatchString(c.Specific.Context) {
+		t.Errorf("context = %q", c.Specific.Context)
+	}
+}
+
+func TestHookDarwinPassesOneLineContext(t *testing.T) {
+	r := newRig(t)
+	r.deps.GOOS = "darwin"
+	f := loginAs(t, "c@example.com", "tok-c")
+	r.useLogin(f)
+	c := r.context(expansion("account", "add c"))
+	if !strings.Contains(c.Specific.Context, r.msg(i18n.LoginUnsupportedOS, "c")) || len(f.Calls) != 0 {
+		t.Errorf("context = %q, calls = %d", c.Specific.Context, len(f.Calls))
+	}
+}
+
+func TestHookLoginChildOutputNeverReachesHookStdout(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	f := loginAs(t, "c@example.com", "tok-c")
+	f.Noise = "Opening browser... LOGIN-NOISE\n"
+	r.useLogin(f)
+	code, out := r.hook(expansion("account", "add c"))
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, r.stderr)
+	}
+	var b blockOutput
+	if err := json.Unmarshal([]byte(out), &b); err != nil {
+		t.Fatalf("stdout %q is not a single JSON document: %v", out, err)
+	}
+	if strings.Contains(out, "LOGIN-NOISE") || b.Decision != "block" {
+		t.Errorf("stdout = %q", out)
+	}
+	if !f.Streamed || f.InputRead != "" {
+		t.Errorf("streams not redirected: streamed=%v input=%q", f.Streamed, f.InputRead)
 	}
 }
 
@@ -42,9 +132,9 @@ func TestHookReloginUnknownProfileReportsError(t *testing.T) {
 	r := newRig(t)
 	f := loginAs(t, "c@example.com", "tok-c")
 	r.useLogin(f)
-	code, out := r.hook(expansion("account", "relogin nope"))
-	if code != 0 || strings.Contains(out, r.msg(i18n.HookReloginTerminal, "nope", "nope")) {
-		t.Errorf("exit %d, out %q", code, out)
+	c := r.context(expansion("account", "relogin nope"))
+	if !strings.Contains(c.Specific.Context, r.msg(i18n.UnknownProfile, "nope")) {
+		t.Errorf("context = %q", c.Specific.Context)
 	}
 	if len(f.Calls) != 0 {
 		t.Error("the hook started a login")

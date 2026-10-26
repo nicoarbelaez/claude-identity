@@ -69,6 +69,8 @@ type Deps struct {
 	// RemoveAll deletes the temporary login directory; nil means os.RemoveAll.
 	// Tests inject a failing one.
 	RemoveAll func(path string) error
+	// Quiet suppresses progress lines such as "Starting the login..." (hook mode).
+	Quiet bool
 	// GOOS is the operating system; empty means runtime.GOOS. Tests set it.
 	GOOS string
 }
@@ -262,9 +264,8 @@ func (a *app) relogin(args []string) int {
 		// open a browser login that Relogin would refuse afterwards.
 		return a.fail(&swap.NoStoredEmailError{Name: p.Name}, p.Name)
 	}
-	who := p.Email
 	opts := login.Options{Console: flags["console"], SSO: flags["sso"], Email: p.Email}
-	return a.withIsolatedLogin(opts, a.t(i18n.ReloginSteps, who, p.Name), func(src swap.Source) int {
+	return a.withIsolatedLogin(opts, p.Name, a.t(i18n.ReloginRetry, p.Name), func(src swap.Source) int {
 		res, err := a.Swap.Relogin(p.Name, src)
 		if err != nil {
 			return a.fail(err, p.Name)
