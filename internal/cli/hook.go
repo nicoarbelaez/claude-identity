@@ -62,6 +62,10 @@ func (a *app) hook() int {
 		return a.context(hookRejected)
 	}
 
+	if msg, ok := a.hookNeedsTerminal(args); ok {
+		return a.block(msg)
+	}
+
 	var out, errOut bytes.Buffer
 	d := a.Deps
 	d.Stdout, d.Stderr = &out, &errOut
@@ -69,6 +73,35 @@ func (a *app) hook() int {
 		return a.context(hookFailed + out.String() + errOut.String())
 	}
 	return a.block(out.String())
+}
+
+// hookNeedsTerminal reports whether args would start a browser login (`add`
+// without --current, or `relogin`). The hook has no terminal and a short
+// timeout, so it explains how to run the command instead. Malformed commands
+// and unknown profiles are left to Run, which reports them.
+func (a *app) hookNeedsTerminal(args []string) (string, bool) {
+	if len(args) == 0 {
+		return "", false
+	}
+	switch args[0] {
+	case "add":
+		flags, rest := extractFlags(args[1:], "force", "current", "console", "sso")
+		if flags["current"] || len(rest) != 1 {
+			return "", false
+		}
+		return a.t(i18n.HookAddNeedsTerminal, rest[0], rest[0]), true
+	case "relogin":
+		_, rest := extractFlags(args[1:], "console", "sso")
+		if len(rest) != 1 {
+			return "", false
+		}
+		p, err := a.Profiles.Resolve(rest[0])
+		if err != nil {
+			return "", false
+		}
+		return a.t(i18n.HookReloginTerminal, p.Name, p.Name), true
+	}
+	return "", false
 }
 
 func validHookArgs(args []string) bool {

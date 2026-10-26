@@ -31,14 +31,20 @@ type Paths struct {
 	ClaudeJSON  string // ~/.claude.json, or <configDir>/.claude.json
 }
 
+// PathsIn locates the files of a Claude Code config directory, as used when
+// CLAUDE_CONFIG_DIR points at dir.
+func PathsIn(dir string) Paths {
+	return Paths{
+		Credentials: filepath.Join(dir, ".credentials.json"),
+		ClaudeJSON:  filepath.Join(dir, ".claude.json"),
+	}
+}
+
 // ResolvePaths mirrors Claude Code's own lookup: CLAUDE_CONFIG_DIR wins,
 // otherwise ~/.claude/.credentials.json and ~/.claude.json under home.
 func ResolvePaths(home string) Paths {
 	if cfg := os.Getenv("CLAUDE_CONFIG_DIR"); cfg != "" {
-		return Paths{
-			Credentials: filepath.Join(cfg, ".credentials.json"),
-			ClaudeJSON:  filepath.Join(cfg, ".claude.json"),
-		}
+		return PathsIn(cfg)
 	}
 	return Paths{
 		Credentials: filepath.Join(home, ".claude", ".credentials.json"),

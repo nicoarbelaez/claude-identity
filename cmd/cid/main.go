@@ -10,6 +10,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/cli"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/login"
 	"github.com/nicoarbelaez/claude-identity/internal/pathenv"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
@@ -55,6 +56,8 @@ func wire(lang i18n.Lang) (cli.Deps, error) {
 		Profiles: store,
 		Swap:     swap.New(store, kv, live, lock),
 		Lang:     lang,
+		Login:    login.ExecRunner{},
+		GOOS:     runtime.GOOS,
 		Config: cli.Config{
 			ProfilesPath: profilesPath,
 			ClaudeDir:    filepath.Dir(paths.Credentials),

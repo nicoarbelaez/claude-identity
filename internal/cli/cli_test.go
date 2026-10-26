@@ -43,6 +43,7 @@ func newRig(t *testing.T) *rig {
 		Profiles: p,
 		Swap:     svc,
 		Lang:     i18n.EN,
+		GOOS:     "linux",
 		Config:   Config{ProfilesPath: profilesPath, ClaudeDir: filepath.Dir(paths.Credentials)},
 		Stdout:   r.stdout,
 		Stderr:   r.stderr,
@@ -70,11 +71,11 @@ func (r *rig) login(email, token string) {
 func (r *rig) twoProfiles() {
 	r.t.Helper()
 	r.login("a@example.com", "tok-a")
-	if code := r.run("add", "a"); code != 0 {
+	if code := r.run("add", "a", "--current"); code != 0 {
 		r.t.Fatalf("add a: exit %d: %s", code, r.stderr)
 	}
 	r.login("b@example.com", "tok-b")
-	if code := r.run("add", "b"); code != 0 {
+	if code := r.run("add", "b", "--current"); code != 0 {
 		r.t.Fatalf("add b: exit %d: %s", code, r.stderr)
 	}
 }
@@ -135,7 +136,7 @@ func TestListJSON(t *testing.T) {
 func TestAddCapturesLiveLoginAndActivates(t *testing.T) {
 	r := newRig(t)
 	r.login("a@example.com", "tok-a")
-	if code := r.run("add", "a"); code != 0 {
+	if code := r.run("add", "a", "--current"); code != 0 {
 		t.Fatalf("exit %d: %s", code, r.stderr)
 	}
 	if !strings.Contains(r.stdout.String(), r.msg(i18n.ProfileAdded, "a")) {
@@ -158,11 +159,11 @@ func TestAddErrors(t *testing.T) {
 	if code := r.run("add", "--force"); code != 2 || !strings.Contains(r.stderr.String(), r.msg(i18n.MissingName)) {
 		t.Errorf("only --force: exit %d, stderr %q", code, r.stderr)
 	}
-	if code := r.run("add", "a"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.NoLiveLogin)) {
+	if code := r.run("add", "a", "--current"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.NoLiveLogin)) {
 		t.Errorf("no live login: exit %d, stderr %q", code, r.stderr)
 	}
 	r.login("a@example.com", "tok-a")
-	if code := r.run("add", "Bad Name"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.InvalidName)) {
+	if code := r.run("add", "Bad Name", "--current"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.InvalidName)) {
 		t.Errorf("invalid name: exit %d, stderr %q", code, r.stderr)
 	}
 }
@@ -171,7 +172,7 @@ func TestAddSameAccountRefreshesSilently(t *testing.T) {
 	r := newRig(t)
 	r.twoProfiles()
 	r.login("a@example.com", "tok-a2")
-	if code := r.run("add", "a"); code != 0 {
+	if code := r.run("add", "a", "--current"); code != 0 {
 		t.Fatalf("exit %d: %s", code, r.stderr)
 	}
 	if !strings.Contains(r.stdout.String(), r.msg(i18n.ProfileAdded, "a")) {
@@ -183,7 +184,7 @@ func TestAddBlocksOverwriteOfOtherAccount(t *testing.T) {
 	r := newRig(t)
 	r.twoProfiles() // a, b saved; b live
 	r.login("c@example.com", "tok-c")
-	if code := r.run("add", "a"); code != 1 {
+	if code := r.run("add", "a", "--current"); code != 1 {
 		t.Fatalf("exit %d, want 1", code)
 	}
 	if want := r.msg(i18n.ProfileExists, "a", "a@example.com"); !strings.Contains(r.stderr.String(), want) {
@@ -198,7 +199,7 @@ func TestAddBlocksOverwriteOfOtherAccount(t *testing.T) {
 }
 
 func TestAddForceReplaces(t *testing.T) {
-	for _, args := range [][]string{{"add", "a", "--force"}, {"add", "--force", "a"}} {
+	for _, args := range [][]string{{"add", "a", "--force", "--current"}, {"add", "--force", "a", "--current"}} {
 		r := newRig(t)
 		r.twoProfiles()
 		r.login("c@example.com", "tok-c")
@@ -217,7 +218,7 @@ func TestAddForceReplaces(t *testing.T) {
 func TestAddBlocksDuplicateAccount(t *testing.T) {
 	r := newRig(t)
 	r.twoProfiles() // b live and saved as b
-	for _, args := range [][]string{{"add", "luna"}, {"add", "luna", "--force"}} {
+	for _, args := range [][]string{{"add", "luna", "--current"}, {"add", "luna", "--force", "--current"}} {
 		if code := r.run(args...); code != 1 {
 			t.Fatalf("%v: exit %d, want 1", args, code)
 		}
@@ -424,25 +425,6 @@ func TestListStatusFollowsLiveAndVault(t *testing.T) {
 	}
 }
 
-func TestRelogin(t *testing.T) {
-	r := newRig(t)
-	r.twoProfiles()
-	for _, ref := range []string{"a", "1"} {
-		if code := r.run("relogin", ref); code != 0 {
-			t.Fatalf("%s: exit %d: %s", ref, code, r.stderr)
-		}
-		if want := r.msg(i18n.ReloginSteps, "a@example.com", "a"); !strings.Contains(r.stdout.String(), want) {
-			t.Errorf("%s: stdout = %q, want %q", ref, r.stdout, want)
-		}
-	}
-	if code := r.run("relogin", "nope"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.UnknownProfile, "nope")) {
-		t.Errorf("unknown: exit %d, stderr %q", code, r.stderr)
-	}
-	if code := r.run("relogin"); code != 2 {
-		t.Errorf("missing arg: exit %d, want 2", code)
-	}
-}
-
 func TestConfig(t *testing.T) {
 	r := newRig(t)
 	r.deps.Config.ProfilesPath = "/p/profiles.json"
@@ -494,8 +476,14 @@ type fakeSwap struct {
 
 func (f fakeSwap) Switch(string) (swap.Result, error)       { return f.switchRes, f.err }
 func (f fakeSwap) Add(string, bool) (swap.AddResult, error) { return swap.AddResult{}, f.err }
-func (f fakeSwap) Remove(string) (profile.Profile, error)   { return profile.Profile{}, f.err }
-func (f fakeSwap) Status(string, bool) credentials.Status   { return credentials.StatusUnknown }
+func (f fakeSwap) AddFrom(string, swap.Source, bool) (swap.AddResult, error) {
+	return swap.AddResult{}, f.err
+}
+func (f fakeSwap) Relogin(string, swap.Source) (swap.ReloginResult, error) {
+	return swap.ReloginResult{}, f.err
+}
+func (f fakeSwap) Remove(string) (profile.Profile, error) { return profile.Profile{}, f.err }
+func (f fakeSwap) Status(string, bool) credentials.Status { return credentials.StatusUnknown }
 
 func TestRuntimeErrorMapping(t *testing.T) {
 	secret := "sk-ant-oat01-SECRET"

@@ -14,6 +14,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/login"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
 	"github.com/nicoarbelaez/claude-identity/internal/version"
@@ -38,6 +39,8 @@ type ProfileReader interface {
 type Swapper interface {
 	Switch(arg string) (swap.Result, error)
 	Add(name string, force bool) (swap.AddResult, error)
+	AddFrom(name string, src swap.Source, force bool) (swap.AddResult, error)
+	Relogin(arg string, src swap.Source) (swap.ReloginResult, error)
 	Remove(arg string) (profile.Profile, error)
 	Status(name string, active bool) credentials.Status
 }
@@ -61,6 +64,13 @@ type Deps struct {
 	Stdin     io.Reader // read only by the internal `hook` command
 	Stdout    io.Writer
 	Stderr    io.Writer
+	// Login runs Claude Code's login in an isolated config dir (cid add/relogin).
+	Login login.Runner
+	// RemoveAll deletes the temporary login directory; nil means os.RemoveAll.
+	// Tests inject a failing one.
+	RemoveAll func(path string) error
+	// GOOS is the operating system; empty means runtime.GOOS. Tests set it.
+	GOOS string
 }
 
 // Run executes one cid invocation and returns the process exit code:
@@ -234,10 +244,12 @@ func (a *app) current(args []string) int {
 	return exitOK
 }
 
-// relogin prints the manual steps to refresh a profile's login. It never
-// touches credentials.
+// relogin refreshes a profile's login by running Claude Code's login in an
+// isolated config dir for the profile's account. If the login cannot run, it
+// prints the manual steps instead.
 func (a *app) relogin(args []string) int {
-	_, pos, ok := parse("relogin", args, false, 1)
+	flags, rest := extractFlags(args, "console", "sso")
+	_, pos, ok := parse("relogin", rest, false, 1)
 	if !ok {
 		return a.usageError("")
 	}
@@ -245,12 +257,24 @@ func (a *app) relogin(args []string) int {
 	if err != nil {
 		return a.fail(err, pos[0])
 	}
-	who := p.Email
-	if who == "" {
-		who = p.Name
+	if p.Email == "" {
+		// Without a saved email the new login could not be verified, so do not
+		// open a browser login that Relogin would refuse afterwards.
+		return a.fail(&swap.NoStoredEmailError{Name: p.Name}, p.Name)
 	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ReloginSteps, who, p.Name))
-	return exitOK
+	who := p.Email
+	opts := login.Options{Console: flags["console"], SSO: flags["sso"], Email: p.Email}
+	return a.withIsolatedLogin(opts, a.t(i18n.ReloginSteps, who, p.Name), func(src swap.Source) int {
+		res, err := a.Swap.Relogin(p.Name, src)
+		if err != nil {
+			return a.fail(err, p.Name)
+		}
+		a.printf(a.Stdout, "%s\n", a.t(i18n.ReloginDone, res.Profile.Name))
+		if res.LiveUpdated {
+			a.printf(a.Stdout, "%s\n", a.t(i18n.ReloginLiveUpdated))
+		}
+		return exitOK
+	})
 }
 
 func (a *app) switchTo(args []string) int {
@@ -281,17 +305,11 @@ func (a *app) doSwitch(arg string) int {
 	return exitOK
 }
 
+// add saves an account as a profile. By default it runs Claude Code's login in
+// an isolated config dir; with --current it captures the live login instead.
 func (a *app) add(args []string) int {
-	// --force may follow the name, which the flag package would not parse.
-	force := false
-	rest := make([]string, 0, len(args))
-	for _, arg := range args {
-		if arg == "--force" || arg == "-force" {
-			force = true
-			continue
-		}
-		rest = append(rest, arg)
-	}
+	// Flags may follow the name, which the flag package would not parse.
+	flags, rest := extractFlags(args, "force", "current", "console", "sso")
 	if len(rest) == 0 {
 		return a.usageError(a.t(i18n.MissingName))
 	}
@@ -299,16 +317,13 @@ func (a *app) add(args []string) int {
 	if !ok {
 		return a.usageError("")
 	}
-	res, err := a.Swap.Add(pos[0], force)
-	if err != nil {
-		return a.fail(err, pos[0])
+	if flags["current"] {
+		if flags["console"] || flags["sso"] {
+			return a.usageError("")
+		}
+		return a.addCurrent(pos[0], flags["force"])
 	}
-	msg := i18n.ProfileAdded
-	if res.Replaced {
-		msg = i18n.ProfileReplaced
-	}
-	a.printf(a.Stdout, "%s\n", a.t(msg, res.Profile.Name))
-	return exitOK
+	return a.addWithLogin(pos[0], flags["force"], login.Options{Console: flags["console"], SSO: flags["sso"]})
 }
 
 func (a *app) remove(args []string) int {
@@ -380,7 +395,16 @@ func (a *app) fail(err error, arg string) int {
 	var msg string
 	var exists *swap.ProfileExistsError
 	var dup *swap.DuplicateAccountError
+	var mismatch *swap.EmailMismatchError
+	var noEmail *swap.NoStoredEmailError
+	var notUpdated *swap.ProfileNotUpdatedError
 	switch {
+	case errors.As(err, &noEmail):
+		msg = a.t(i18n.ReloginNoEmail, noEmail.Name, noEmail.Name)
+	case errors.As(err, &notUpdated):
+		msg = a.t(i18n.ReloginProfileNotUpdated, notUpdated.Name, notUpdated.Name)
+	case errors.As(err, &mismatch):
+		msg = a.t(i18n.ReloginEmailMismatch, mismatch.Got, mismatch.Name, mismatch.Want, mismatch.Name)
 	case errors.As(err, &exists):
 		msg = a.t(i18n.ProfileExists, exists.Name, exists.Email)
 	case errors.As(err, &dup):
