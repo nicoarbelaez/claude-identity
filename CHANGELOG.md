@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.3.1...v0.4.0) (2026-10-26)
+
+
+### Features
+
+* **cli:** agregar cid uninstall para eliminar perfiles y configuración ([#23](https://github.com/nicoarbelaez/claude-identity/issues/23)) ([ec600a9](https://github.com/nicoarbelaez/claude-identity/commit/ec600a9e05e8d0ec30cf1fe79627054e23f080d9))
+* **cli:** cid add y cid relogin inician el login de Claude Code automáticamente ([#25](https://github.com/nicoarbelaez/claude-identity/issues/25)) ([751e7ea](https://github.com/nicoarbelaez/claude-identity/commit/751e7ea865fa4ed8fcc0d479f5390c52933ba7ee))
+
 ## [0.3.1](https://github.com/nicoarbelaez/claude-identity/compare/v0.3.0...v0.3.1) (2026-10-26)
 
 
