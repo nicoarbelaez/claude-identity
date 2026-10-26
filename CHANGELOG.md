@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.1.0...v0.2.0) (2026-10-26)
+
+
+### Features
+
+* CLI cid con list, switch, add, remove, current, config y version ([#12](https://github.com/nicoarbelaez/claude-identity/issues/12)) ([7ad7a62](https://github.com/nicoarbelaez/claude-identity/commit/7ad7a6250f40790bbbe646947da95e18198fe766))
+
+
+### Bug Fixes
+
+* **release:** usar tags vX.Y.Z y permitir reconstruir una release ([#11](https://github.com/nicoarbelaez/claude-identity/issues/11)) ([c7a20e5](https://github.com/nicoarbelaez/claude-identity/commit/c7a20e54f384d54fc623291fa2540169ab7b7ae4))
+
 ## 0.1.0 (2026-10-26)
 
 
