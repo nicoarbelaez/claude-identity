@@ -155,9 +155,12 @@ var catalogEN = map[Key]string{
   cid list [--json]         List profiles
   cid <n|name>              Switch to a profile
   cid switch <n|name>       Switch to a profile
-  cid add <name> [--force]  Save the current Claude Code login as a profile
+  cid add <name> [--force] [--console] [--sso]
+                            Log in through Claude Code and save the account as a profile
+  cid add <name> --current  Save the current Claude Code login as a profile and mark it active
   cid remove <n|name>       Remove a profile (not the active one)
-  cid relogin <n|name>      Show the steps to refresh a profile's login
+  cid relogin <n|name> [--console] [--sso]
+                            Log in again and refresh the profile's saved login
   cid current [--json]      Show the active profile
   cid config                Show config locations and language
   cid uninstall [--yes]     Remove all cid data (profiles, stored credentials, PATH entry)
@@ -238,9 +241,12 @@ var catalogES = map[Key]string{
   cid list [--json]         Lista los perfiles
   cid <n|nombre>            Cambia a un perfil
   cid switch <n|nombre>     Cambia a un perfil
-  cid add <nombre> [--force] Guarda la sesión actual de Claude Code como perfil
+  cid add <nombre> [--force] [--console] [--sso]
+                            Inicia sesión con Claude Code y guarda la cuenta como perfil
+  cid add <nombre> --current Guarda la sesión actual de Claude Code como perfil y lo activa
   cid remove <n|nombre>     Elimina un perfil (no el activo)
-  cid relogin <n|nombre>    Muestra los pasos para renovar la sesión de un perfil
+  cid relogin <n|nombre> [--console] [--sso]
+                            Inicia sesión de nuevo y renueva la sesión guardada del perfil
   cid current [--json]      Muestra el perfil activo
   cid config                Muestra las rutas de configuración y el idioma
   cid uninstall [--yes]     Elimina todos los datos de cid (perfiles, credenciales guardadas, entrada del PATH)

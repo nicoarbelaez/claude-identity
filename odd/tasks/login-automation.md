@@ -29,11 +29,11 @@ If S1 fails, the isolated flow reports "no credentials" and falls back to the ma
 ## Checklist
 | ID | Status | Task | Route | Commit |
 |----|--------|------|-------|--------|
-| L1 | [x] | Isolated login runner (`internal/login`: Options, exec runner, fake, `claudecfg.PathsIn`) | inline | |
-| L2 | [x] | `cid add` with auto login (`swap.AddFrom`, `--console/--sso/--current`, darwin and missing-claude fallback) | bounded writer | |
-| L3 | [x] | `cid relogin` with auto login (`swap.Relogin`, email match, live store refresh when active) | bounded writer | |
-| L4 | [x] | Hook guidance: block `add` (without `--current`) and `relogin`, keep `add --current` | bounded writer | |
-| L5 | [ ] | Docs: README Usage table + "Adding accounts", help text en/es, SKILL.md if needed | bounded writer | |
+| L1 | [x] | Isolated login runner (`internal/login`: Options, exec runner, fake, `claudecfg.PathsIn`) | inline | 3a560c5 |
+| L2 | [x] | `cid add` with auto login (`swap.AddFrom`, `--console/--sso/--current`, darwin and missing-claude fallback) | bounded writer | c5888f9 |
+| L3 | [x] | `cid relogin` with auto login (`swap.Relogin`, email match, live store refresh when active) | bounded writer | 586565c |
+| L4 | [x] | Hook guidance: block `add` (without `--current`) and `relogin`, keep `add --current` | bounded writer | 75d920d |
+| L5 | [x] | Docs: README Usage table + "Adding accounts", help text en/es, SKILL.md if needed | bounded writer | this commit |
 
 ## Acceptance criteria
 - `cid add <name>` saves the freshly logged-in account as a profile without changing the live login or the active profile.
@@ -48,7 +48,10 @@ If S1 fails, the isolated flow reports "no credentials" and falls back to the ma
 `go build ./...` (also GOOS=linux and GOOS=darwin), `go vet ./...`, `go test ./...`, `gofmt -l .`, golangci-lint. TDD: RED (compile or assertion failure) before GREEN for every task.
 
 ## Progress
-(updated per task)
+- L1-L5 done, each with RED observed first (compile or assertion failure) and GREEN after the implementation. Tests use fake runners and temp dirs only; the real keyring and `~/.claude` are never touched.
+- Design: `login.Runner` interface (exec + `FakeRunner`); `swap.Service.AddFrom` shares the Add guard (`addFrom`) and neither marks active nor touches live; `swap.Service.Relogin` checks the email, overwrites stored credentials and writes the live store only for the active profile; the login itself runs outside the cross-process lock (only the save is locked).
+- `cid add` without `--current` is now the isolated login; existing live-capture tests were updated to pass `--current`.
+- Unverified, depends on the spike: S1 (`claude auth login` honors `CLAUDE_CONFIG_DIR`), S2 (no-TTY use), S3 (macOS). Until S1 is confirmed, a real run may end in the "no credentials" fallback.
 
 ## Next step
-L1.
+Run the user spike results (S1/S2) against a real `cid add` on Windows/Linux, then decide on macOS support (S3).
