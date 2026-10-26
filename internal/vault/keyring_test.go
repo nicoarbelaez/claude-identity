@@ -3,7 +3,6 @@ package vault
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -174,7 +173,7 @@ func TestKeyringVaultMissingChunk(t *testing.T) {
 func TestMaxChunkLenFitsWindowsLimit(t *testing.T) {
 	// go-keyring rejects Windows passwords over 2560 bytes; macOS ~3000 total.
 	if maxChunkLen > 2560-64 {
-		t.Fatal(fmt.Sprintf("maxChunkLen %d leaves too little headroom", maxChunkLen))
+		t.Fatalf("maxChunkLen %d leaves too little headroom", maxChunkLen)
 	}
 }
 

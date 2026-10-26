@@ -204,16 +204,18 @@ func (s *Store) save(d fileData) error {
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
-	defer os.Remove(tmp.Name()) // no-op after a successful rename
+	tmpName := tmp.Name()
+	fail := func(err error) error {
+		return errors.Join(err, os.Remove(tmpName))
+	}
 	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
-		return err
+		return fail(errors.Join(fmt.Errorf("write temp file: %w", err), tmp.Close()))
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		return fail(fmt.Errorf("close temp file: %w", err))
 	}
-	if err := os.Rename(tmp.Name(), s.path); err != nil {
-		return fmt.Errorf("replace profiles: %w", err)
+	if err := os.Rename(tmpName, s.path); err != nil {
+		return fail(fmt.Errorf("replace profiles: %w", err))
 	}
 	return nil
 }
