@@ -191,6 +191,23 @@ func (s *Service) Remove(arg string) (profile.Profile, error) {
 	return p, err
 }
 
+// Status reports the local token status of profile name: from the live store
+// when it is the active profile, otherwise from its saved vault bundle. Any
+// read failure yields StatusUnknown.
+func (s *Service) Status(name string, active bool) credentials.Status {
+	var b credentials.Bundle
+	var err error
+	if active {
+		b, err = s.Live.Read()
+	} else {
+		b, err = s.load(name)
+	}
+	if err != nil {
+		return credentials.StatusUnknown
+	}
+	return b.Status(time.Now())
+}
+
 // Capture saves the live login as profile name, creating the profile if needed.
 func (s *Service) Capture(name string) (profile.Profile, error) {
 	var p profile.Profile

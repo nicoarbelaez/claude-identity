@@ -81,6 +81,30 @@ func twoAccounts(t *testing.T) *env {
 	return e
 }
 
+func TestStatusReadsLiveForActiveAndVaultForOthers(t *testing.T) {
+	e := twoAccounts(t) // a: stored, expired; b: live and stored, expired
+	if got := e.svc.Status("a", false); got != credentials.StatusAccessExpired {
+		t.Errorf("vault status = %q", got)
+	}
+	e.login(t, bundle("b@example.com", "tok-b2", time.Now().Add(time.Hour).UnixMilli()))
+	if got := e.svc.Status("b", true); got != credentials.StatusOK {
+		t.Errorf("active status = %q, want live bundle (ok)", got)
+	}
+	if got := e.svc.Status("b", false); got != credentials.StatusAccessExpired {
+		t.Errorf("stored copy status = %q", got)
+	}
+}
+
+func TestStatusUnknownWhenSourceUnavailable(t *testing.T) {
+	e := newEnv(t)
+	if got := e.svc.Status("missing", false); got != credentials.StatusUnknown {
+		t.Errorf("missing vault entry: %q", got)
+	}
+	if got := e.svc.Status("x", true); got != credentials.StatusUnknown {
+		t.Errorf("no live login: %q", got)
+	}
+}
+
 func TestRemoveFailsClosedWhenActiveLookupFails(t *testing.T) {
 	e := twoAccounts(t)
 	boom := errors.New("active lookup exploded")
