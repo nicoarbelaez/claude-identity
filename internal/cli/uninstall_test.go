@@ -42,6 +42,12 @@ func uninstallRig(t *testing.T) (*rig, *fakePathEnv, string) {
 	r.twoProfiles()
 	pe := &fakePathEnv{removed: true}
 	exe := filepath.Join(t.TempDir(), "bin", "cid.exe")
+	if err := os.MkdirAll(filepath.Dir(exe), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(exe, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	r.deps.Uninstall = UninstallDeps{
 		Vault:      r.vault,
 		PathEnv:    pe,
@@ -82,6 +88,20 @@ func TestUninstallYesRemovesEverything(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestUninstallKeepsSharedBinDirOnPath(t *testing.T) {
+	r, pe, exe := uninstallRig(t)
+	// A directory shared with other tools (for example ~/go/bin after go install).
+	if err := os.WriteFile(filepath.Join(filepath.Dir(exe), "gopls.exe"), nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if len(pe.dirs) != 0 {
+		t.Errorf("PATH editor called with %v for a shared directory", pe.dirs)
 	}
 }
 

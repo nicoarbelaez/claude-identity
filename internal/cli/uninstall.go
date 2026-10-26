@@ -40,12 +40,17 @@ func (a *app) uninstall(args []string) int {
 	// A broken profiles file must not block the rest of the cleanup.
 	ps, listErr := a.Profiles.List()
 	cfgDir := filepath.Dir(a.Config.ProfilesPath)
-	binDir := a.installDir()
+	// Only a directory that holds nothing but cid was added to PATH by the
+	// installer; a shared one (e.g. ~/go/bin) must stay on PATH.
+	pathDir := a.installDir()
+	if !onlyCid(pathDir) {
+		pathDir = ""
+	}
 
 	if !*yes {
 		a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallPlan, len(ps), cfgDir))
-		if u.PathEnv != nil && binDir != "" {
-			a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallPlanPath, binDir))
+		if u.PathEnv != nil && pathDir != "" {
+			a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallPlanPath, pathDir))
 		}
 		if !a.confirm() {
 			a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallAborted))
@@ -87,13 +92,13 @@ func (a *app) uninstall(args []string) int {
 			a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallFileRemoved, cfgDir))
 		}
 	}
-	if u.PathEnv != nil && binDir != "" {
-		removed, err := u.PathEnv.RemoveDir(binDir)
+	if u.PathEnv != nil && pathDir != "" {
+		removed, err := u.PathEnv.RemoveDir(pathDir)
 		switch {
 		case err != nil:
 			fail("PATH", err)
 		case removed:
-			a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallPathRemoved, binDir))
+			a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallPathRemoved, pathDir))
 		}
 	}
 
@@ -122,6 +127,20 @@ func (a *app) installDir() string {
 		exe = resolved
 	}
 	return filepath.Dir(exe)
+}
+
+// onlyCid reports whether dir exists and contains only the cid binary.
+func onlyCid(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if n := strings.ToLower(e.Name()); n != "cid" && n != "cid.exe" {
+			return false
+		}
+	}
+	return true
 }
 
 // confirm reads one line from Stdin; only an explicit yes (English or
