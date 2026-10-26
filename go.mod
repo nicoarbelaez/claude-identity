@@ -3,8 +3,9 @@ module github.com/nicoarbelaez/claude-identity
 go 1.26
 
 require (
+	github.com/gofrs/flock v0.13.1
 	github.com/zalando/go-keyring v0.2.8
-	golang.org/x/sys v0.27.0
+	golang.org/x/sys v0.47.0
 )
 
 require (
