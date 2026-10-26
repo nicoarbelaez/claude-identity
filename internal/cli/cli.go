@@ -1,0 +1,323 @@
+// Package cli is the command-line adapter of cid. It parses arguments, calls
+// the profile store and swap service through small ports, and prints
+// localized messages. It never handles token values.
+package cli
+
+import (
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
+	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/profile"
+	"github.com/nicoarbelaez/claude-identity/internal/swap"
+	"github.com/nicoarbelaez/claude-identity/internal/version"
+)
+
+// Exit codes.
+const (
+	exitOK      = 0
+	exitRuntime = 1
+	exitUsage   = 2
+)
+
+// ProfileReader is the read side of the profile store.
+type ProfileReader interface {
+	List() ([]profile.Profile, error)
+	Active() (profile.Profile, error)
+	Resolve(arg string) (profile.Profile, error)
+}
+
+// Swapper is the write side: operations that touch live credentials, the
+// vault, and profiles.json under the cross-process lock.
+type Swapper interface {
+	Switch(arg string) (swap.Result, error)
+	Add(name string) (profile.Profile, error)
+	Remove(arg string) (profile.Profile, error)
+}
+
+// Config describes where cid and Claude Code keep their data (for `cid config`).
+type Config struct {
+	ProfilesPath string
+	ClaudeDir    string
+	// Keychain is true when Claude Code credentials live in the macOS Keychain.
+	Keychain bool
+}
+
+// Deps are the injected collaborators of Run.
+type Deps struct {
+	Profiles ProfileReader
+	Swap     Swapper
+	Lang     i18n.Lang
+	Config   Config
+	Stdout   io.Writer
+	Stderr   io.Writer
+}
+
+// Run executes one cid invocation and returns the process exit code:
+// 0 success, 1 runtime error, 2 usage error.
+func Run(d Deps, args []string) int {
+	a := &app{Deps: d}
+	if len(args) == 0 {
+		return a.list(nil)
+	}
+	cmd, rest := args[0], args[1:]
+	switch cmd {
+	case "list":
+		return a.list(rest)
+	case "switch":
+		return a.switchTo(rest)
+	case "add":
+		return a.add(rest)
+	case "remove":
+		return a.remove(rest)
+	case "current":
+		return a.current(rest)
+	case "config":
+		return a.config(rest)
+	case "version":
+		return a.version(rest)
+	case "help", "-h", "--help":
+		a.printf(a.Stdout, "%s\n", a.t(i18n.Usage))
+		return exitOK
+	}
+	return a.bare(args)
+}
+
+type app struct{ Deps }
+
+func (a *app) t(key i18n.Key, args ...any) string { return i18n.T(a.Lang, key, args...) }
+
+func (a *app) printf(w io.Writer, format string, args ...any) {
+	_, _ = fmt.Fprintf(w, format, args...)
+}
+
+func (a *app) usageError(msg string) int {
+	if msg != "" {
+		a.printf(a.Stderr, "%s\n", msg)
+	}
+	a.printf(a.Stderr, "%s\n", a.t(i18n.Usage))
+	return exitUsage
+}
+
+// bare handles `cid <n|name>`: a profile reference acts as a switch, anything
+// else is an unknown command.
+func (a *app) bare(args []string) int {
+	if len(args) != 1 || strings.HasPrefix(args[0], "-") {
+		return a.usageError(a.t(i18n.UnknownCommand, args[0]))
+	}
+	if _, err := a.Profiles.Resolve(args[0]); err != nil {
+		if errors.Is(err, profile.ErrNotFound) {
+			return a.usageError(a.t(i18n.UnknownCommand, args[0]))
+		}
+		return a.fail(err, args[0])
+	}
+	return a.doSwitch(args[0])
+}
+
+// parse parses flags for a command that accepts only --json (when withJSON)
+// and the given number of positional arguments.
+func parse(name string, args []string, withJSON bool, positional int) (asJSON bool, pos []string, ok bool) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	if withJSON {
+		fs.BoolVar(&asJSON, "json", false, "")
+	}
+	if err := fs.Parse(args); err != nil || fs.NArg() != positional {
+		return false, nil, false
+	}
+	return asJSON, fs.Args(), true
+}
+
+func (a *app) list(args []string) int {
+	asJSON, _, ok := parse("list", args, true, 0)
+	if !ok {
+		return a.usageError("")
+	}
+	ps, err := a.Profiles.List()
+	if err != nil {
+		return a.fail(err, "")
+	}
+	activeName := a.activeName()
+	if asJSON {
+		out := make([]jsonProfile, 0, len(ps))
+		for _, p := range ps {
+			out = append(out, toJSON(p, p.Name == activeName))
+		}
+		return a.writeJSON(out)
+	}
+	if len(ps) == 0 {
+		a.printf(a.Stdout, "%s\n", a.t(i18n.ListEmpty))
+		return exitOK
+	}
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileListHeader))
+	for _, p := range ps {
+		marker := " "
+		if p.Name == activeName {
+			marker = "*"
+		}
+		line := fmt.Sprintf("%s %d  %s  %s", marker, p.Index, p.Name, p.Email)
+		a.printf(a.Stdout, "%s\n", strings.TrimRight(line, " "))
+	}
+	return exitOK
+}
+
+// activeName returns the active profile name, or "" when none is recorded.
+func (a *app) activeName() string {
+	p, err := a.Profiles.Active()
+	if err != nil {
+		return ""
+	}
+	return p.Name
+}
+
+func (a *app) current(args []string) int {
+	asJSON, _, ok := parse("current", args, true, 0)
+	if !ok {
+		return a.usageError("")
+	}
+	p, err := a.Profiles.Active()
+	if err != nil && !errors.Is(err, profile.ErrNoActive) {
+		return a.fail(err, "")
+	}
+	none := err != nil
+	if asJSON {
+		if none {
+			return a.writeJSON(nil)
+		}
+		return a.writeJSON(toJSON(p, true))
+	}
+	if none {
+		a.printf(a.Stdout, "%s\n", a.t(i18n.CurrentNone))
+		return exitOK
+	}
+	a.printf(a.Stdout, "%s\n", a.t(i18n.CurrentActive, p.Name, p.Email))
+	return exitOK
+}
+
+func (a *app) switchTo(args []string) int {
+	_, pos, ok := parse("switch", args, false, 1)
+	if !ok {
+		return a.usageError("")
+	}
+	return a.doSwitch(pos[0])
+}
+
+func (a *app) doSwitch(arg string) int {
+	res, err := a.Swap.Switch(arg)
+	if err != nil {
+		return a.fail(err, arg)
+	}
+	if res.NoOp {
+		a.printf(a.Stdout, "%s\n", a.t(i18n.AlreadyActive, res.To.Name))
+		return exitOK
+	}
+	if res.From.Name != "" {
+		a.printf(a.Stdout, "%s\n", a.t(i18n.SwitchedFromTo, res.From.Name, res.To.Name))
+	} else {
+		a.printf(a.Stdout, "%s\n", a.t(i18n.SwitchedTo, res.To.Name))
+	}
+	if res.RemoteControlWarning {
+		a.printf(a.Stdout, "%s\n", a.t(i18n.RemoteControlWarn))
+	}
+	return exitOK
+}
+
+func (a *app) add(args []string) int {
+	_, pos, ok := parse("add", args, false, 1)
+	if !ok {
+		return a.usageError("")
+	}
+	p, err := a.Swap.Add(pos[0])
+	if err != nil {
+		return a.fail(err, pos[0])
+	}
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileAdded, p.Name))
+	return exitOK
+}
+
+func (a *app) remove(args []string) int {
+	_, pos, ok := parse("remove", args, false, 1)
+	if !ok {
+		return a.usageError("")
+	}
+	p, err := a.Swap.Remove(pos[0])
+	if err != nil {
+		return a.fail(err, pos[0])
+	}
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileRemoved, p.Name))
+	return exitOK
+}
+
+func (a *app) config(args []string) int {
+	if _, _, ok := parse("config", args, false, 0); !ok {
+		return a.usageError("")
+	}
+	backend := a.t(i18n.BackendFile)
+	if a.Config.Keychain {
+		backend = a.t(i18n.BackendKeychain)
+	}
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigProfilesPath, a.Config.ProfilesPath))
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigClaudeDir, a.Config.ClaudeDir))
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigBackend, backend))
+	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigLanguage, string(a.Lang)))
+	return exitOK
+}
+
+func (a *app) version(args []string) int {
+	if _, _, ok := parse("version", args, false, 0); !ok {
+		return a.usageError("")
+	}
+	a.printf(a.Stdout, "%s\n", a.t(i18n.VersionLine, version.String()))
+	return exitOK
+}
+
+// jsonProfile is the stable machine-readable profile shape. It never carries
+// credentials.
+type jsonProfile struct {
+	Index  int    `json:"index"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Active bool   `json:"active"`
+}
+
+func toJSON(p profile.Profile, active bool) jsonProfile {
+	return jsonProfile{Index: p.Index, Name: p.Name, Email: p.Email, Active: active}
+}
+
+func (a *app) writeJSON(v any) int {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return a.fail(err, "")
+	}
+	a.printf(a.Stdout, "%s\n", b)
+	return exitOK
+}
+
+// fail prints a localized, payload-free message for err and returns exit 1.
+// arg is the profile reference the user typed, when relevant.
+func (a *app) fail(err error, arg string) int {
+	var msg string
+	switch {
+	case errors.Is(err, profile.ErrNotFound):
+		msg = a.t(i18n.UnknownProfile, arg)
+	case errors.Is(err, profile.ErrInvalidName):
+		msg = a.t(i18n.InvalidName)
+	case errors.Is(err, swap.ErrRemoveActive):
+		msg = a.t(i18n.RemoveActive, arg)
+	case errors.Is(err, swap.ErrUnknownLiveAccount):
+		msg = a.t(i18n.LiveAccountUnknown)
+	case errors.Is(err, swap.ErrLockTimeout):
+		msg = a.t(i18n.LockTimeout)
+	case errors.Is(err, claudecfg.ErrNoCredentials):
+		msg = a.t(i18n.NoLiveLogin)
+	default:
+		msg = a.t(i18n.GenericError, err.Error())
+	}
+	a.printf(a.Stderr, "%s\n", msg)
+	return exitRuntime
+}
