@@ -7,6 +7,7 @@
     ".": {
       "release-type": "go",
       "package-name": "claude-identity",
+      "initial-version": "0.1.0",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         {
