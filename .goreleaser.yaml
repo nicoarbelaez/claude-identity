@@ -23,5 +23,10 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# The GitHub Release (and its notes) is created by release-please before this
+# runs. GoReleaser only attaches assets and must not overwrite the notes.
+release:
+  mode: keep-existing
+
 changelog:
-  use: github
+  disable: true
