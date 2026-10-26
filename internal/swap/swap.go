@@ -153,7 +153,7 @@ func (s *Service) addFrom(name string, src Source, force bool) (AddResult, error
 	if err != nil {
 		return AddResult{}, err
 	}
-	p, err := s.captureLive(name, b)
+	p, err := s.captureFrom(name, b)
 	if err != nil {
 		return AddResult{}, err
 	}
@@ -198,6 +198,27 @@ func (e *EmailMismatchError) Error() string {
 	return fmt.Sprintf("profile %q holds %s but the login is for %s", e.Name, e.Want, e.Got)
 }
 
+// NoStoredEmailError means a relogin was refused because the profile has no
+// saved email, so the new login cannot be verified to be the same account.
+type NoStoredEmailError struct{ Name string }
+
+func (e *NoStoredEmailError) Error() string {
+	return fmt.Sprintf("profile %q has no saved email, so the login cannot be verified; re-add it with `cid add %s --force`", e.Name, e.Name)
+}
+
+// ProfileNotUpdatedError means a relogin of the active profile wrote the new
+// login to Claude Code but could not save it to the profile's vault entry.
+type ProfileNotUpdatedError struct {
+	Name string
+	Err  error
+}
+
+func (e *ProfileNotUpdatedError) Error() string {
+	return fmt.Sprintf("Claude Code already uses the new login but the copy saved for profile %q was not updated: %v", e.Name, e.Err)
+}
+
+func (e *ProfileNotUpdatedError) Unwrap() error { return e.Err }
+
 // ReloginResult describes a completed Relogin.
 type ReloginResult struct {
 	Profile profile.Profile
@@ -207,10 +228,12 @@ type ReloginResult struct {
 }
 
 // Relogin replaces the saved credentials of the profile identified by arg
-// (index or name) with the login held by src. It refuses when src holds a
-// different account than the profile. When the profile is the active one, the
-// fresh credentials are also written to the live store so the running Claude
-// Code session uses them.
+// (index or name) with the login held by src. It refuses when the profile has
+// no saved email, when src holds no email or a different account than the
+// profile, or when that account is saved under another profile. When the
+// profile is the active one, the fresh credentials are written to the live
+// store and verified first, and only then saved to the vault, so a failed live
+// write never leaves the vault ahead of Claude Code.
 func (s *Service) Relogin(arg string, src Source) (ReloginResult, error) {
 	var res ReloginResult
 	err := s.WithLock(func() error {
@@ -218,36 +241,57 @@ func (s *Service) Relogin(arg string, src Source) (ReloginResult, error) {
 		if err != nil {
 			return err
 		}
+		if p.Email == "" {
+			return &NoStoredEmailError{Name: p.Name}
+		}
 		b, err := src.Read()
 		if err != nil {
 			return err
 		}
-		if b.Email() == "" {
-			return ErrUnknownLiveAccount
-		}
-		if p.Email != "" && !strings.EqualFold(p.Email, b.Email()) {
+		if b.Email() != "" && !strings.EqualFold(p.Email, b.Email()) {
 			return &EmailMismatchError{Name: p.Name, Want: p.Email, Got: b.Email()}
+		}
+		// Same guards as Add: an account without email is refused and an
+		// account saved under another name is a duplicate.
+		if _, err := s.checkAdd(p.Name, b.Email(), false); err != nil {
+			return err
 		}
 		// Fail closed: only "no active profile" lets the relogin proceed.
 		active, aerr := s.active()
 		if aerr != nil && !errors.Is(aerr, profile.ErrNoActive) {
 			return aerr
 		}
-		if res.Profile, err = s.captureLive(p.Name, b); err != nil {
-			return err
-		}
-		if aerr == nil && active.Name == p.Name {
-			if err := s.Live.Write(b); err != nil {
-				return err
-			}
-			if err := s.verify(b); err != nil {
+		isActive := aerr == nil && active.Name == p.Name
+		if isActive {
+			if err := s.replaceLive(b); err != nil {
 				return err
 			}
 			res.LiveUpdated = true
 		}
+		if res.Profile, err = s.captureFrom(p.Name, b); err != nil {
+			if isActive {
+				return &ProfileNotUpdatedError{Name: p.Name, Err: err}
+			}
+			return err
+		}
 		return nil
 	})
 	return res, err
+}
+
+// replaceLive writes b to the live store and verifies it. When that fails it
+// puts the previous live login back (best effort) so a bad write does not
+// leave Claude Code logged out.
+func (s *Service) replaceLive(b credentials.Bundle) error {
+	prev, rerr := s.Live.Read()
+	err := s.Live.Write(b)
+	if err == nil {
+		err = s.verify(b)
+	}
+	if err != nil && rerr == nil {
+		err = errors.Join(err, s.Live.Write(prev))
+	}
+	return err
 }
 
 // Remove deletes the profile identified by arg (index or name) together with
@@ -311,24 +355,26 @@ func (s *Service) capture(name string) (profile.Profile, error) {
 	if err != nil {
 		return profile.Profile{}, err
 	}
-	return s.captureLive(name, live)
+	return s.captureFrom(name, live)
 }
 
-func (s *Service) captureLive(name string, live credentials.Bundle) (profile.Profile, error) {
+// captureFrom saves b (from the live store, an isolated login dir, or any
+// other credential source) as profile name, creating the profile if needed.
+func (s *Service) captureFrom(name string, b credentials.Bundle) (profile.Profile, error) {
 	p, created, err := s.ensureProfile(name)
 	if err != nil {
 		return profile.Profile{}, err
 	}
-	if err := s.store(p.Name, live); err != nil {
+	if err := s.store(p.Name, b); err != nil {
 		if created {
 			err = errors.Join(err, s.Profiles.Remove(p.Name))
 		}
 		return profile.Profile{}, err
 	}
-	if err := s.Profiles.SetEmail(p.Name, live.Email()); err != nil {
+	if err := s.Profiles.SetEmail(p.Name, b.Email()); err != nil {
 		return profile.Profile{}, err
 	}
-	p.Email = live.Email()
+	p.Email = b.Email()
 	return p, nil
 }
 
