@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.4.0...v0.5.0) (2026-10-26)
+
+
+### Features
+
+* **cli:** cid config get, set y unset con validación y recuperación de archivos dañados ([#28](https://github.com/nicoarbelaez/claude-identity/issues/28)) ([51d8697](https://github.com/nicoarbelaez/claude-identity/commit/51d8697b4f4054a94b7df68d7b861ed82e5283d7))
+* **hook:** /account add y relogin inician el login desde Claude Code ([#26](https://github.com/nicoarbelaez/claude-identity/issues/26)) ([1943735](https://github.com/nicoarbelaez/claude-identity/commit/1943735f19d2cad4e1da9a5d7064500a5938dff1))
+
 ## [0.4.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.3.1...v0.4.0) (2026-10-26)
 
 
