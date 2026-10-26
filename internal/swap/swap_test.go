@@ -80,6 +80,32 @@ func twoAccounts(t *testing.T) *env {
 	return e
 }
 
+func TestRemoveFailsClosedWhenActiveLookupFails(t *testing.T) {
+	e := twoAccounts(t)
+	boom := errors.New("active lookup exploded")
+	e.svc.activeLookup = func() (profile.Profile, error) { return profile.Profile{}, boom }
+	if _, err := e.svc.Remove("a"); !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want %v", err, boom)
+	}
+	if _, err := e.prof.Resolve("a"); err != nil {
+		t.Errorf("profile a was deleted: %v", err)
+	}
+	if _, err := e.vault.Get("a"); err != nil {
+		t.Errorf("vault entry a was deleted: %v", err)
+	}
+}
+
+func TestRemoveProceedsWhenNoActiveProfile(t *testing.T) {
+	e := twoAccounts(t)
+	e.svc.activeLookup = func() (profile.Profile, error) { return profile.Profile{}, profile.ErrNoActive }
+	if _, err := e.svc.Remove("a"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, err := e.prof.Resolve("a"); !errors.Is(err, profile.ErrNotFound) {
+		t.Errorf("profile a still present: %v", err)
+	}
+}
+
 func TestCaptureCreatesProfileAndStoresBundle(t *testing.T) {
 	e := newEnv(t)
 	e.login(t, bundle("a@example.com", "tok-a1", 1000))

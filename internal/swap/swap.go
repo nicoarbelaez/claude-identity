@@ -48,6 +48,16 @@ type Service struct {
 	Live        claudecfg.Store
 	LockPath    string
 	LockTimeout time.Duration
+
+	// activeLookup overrides Profiles.Active in tests; nil means use the store.
+	activeLookup func() (profile.Profile, error)
+}
+
+func (s *Service) active() (profile.Profile, error) {
+	if s.activeLookup != nil {
+		return s.activeLookup()
+	}
+	return s.Profiles.Active()
 }
 
 // New returns a Service with a 10s lock timeout.
@@ -98,7 +108,12 @@ func (s *Service) Remove(arg string) (profile.Profile, error) {
 		if p, err = s.Profiles.Resolve(arg); err != nil {
 			return err
 		}
-		if active, aerr := s.Profiles.Active(); aerr == nil && active.Name == p.Name {
+		// Fail closed: only "no active profile" lets the removal proceed.
+		active, aerr := s.active()
+		if aerr != nil && !errors.Is(aerr, profile.ErrNoActive) {
+			return aerr
+		}
+		if aerr == nil && active.Name == p.Name {
 			return fmt.Errorf("%w: %s", ErrRemoveActive, p.Name)
 		}
 		if err := s.Profiles.Remove(p.Name); err != nil {

@@ -276,6 +276,36 @@ func TestRemoveErrors(t *testing.T) {
 	}
 }
 
+func TestRemoveActiveByIndexReportsResolvedName(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	if code := r.run("remove", "2"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.RemoveActive, "b")) {
+		t.Errorf("exit %d, stderr %q, want resolved name b", code, r.stderr)
+	}
+}
+
+type activeFailsProfiles struct{}
+
+func (activeFailsProfiles) List() ([]profile.Profile, error) {
+	return []profile.Profile{{Name: "a", Index: 1}}, nil
+}
+func (activeFailsProfiles) Active() (profile.Profile, error) {
+	return profile.Profile{}, errors.New("disk on fire")
+}
+func (activeFailsProfiles) Resolve(string) (profile.Profile, error) {
+	return profile.Profile{}, errors.New("disk on fire")
+}
+
+func TestListSurfacesActiveLookupErrors(t *testing.T) {
+	for _, args := range [][]string{{"list"}, {"list", "--json"}} {
+		r := newRig(t)
+		r.deps.Profiles = activeFailsProfiles{}
+		if code := r.run(args...); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.GenericError, "disk on fire")) {
+			t.Errorf("%v: exit %d, stderr %q", args, code, r.stderr)
+		}
+	}
+}
+
 func TestCurrent(t *testing.T) {
 	r := newRig(t)
 	if code := r.run("current"); code != 0 || !strings.Contains(r.stdout.String(), r.msg(i18n.CurrentNone)) {
