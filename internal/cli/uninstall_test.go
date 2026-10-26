@@ -80,8 +80,14 @@ func TestUninstallYesRemovesEverything(t *testing.T) {
 	if exists(r.deps.Config.ProfilesPath) || exists(r.deps.Uninstall.LockPath) || exists(cfgDir) {
 		t.Errorf("config files or dir left behind in %s", cfgDir)
 	}
-	if len(pe.dirs) != 1 || pe.dirs[0] != filepath.Dir(exe) {
-		t.Errorf("PATH editor got %v, want [%s]", pe.dirs, filepath.Dir(exe))
+	// installDir resolves symlinks and short names (/var -> /private/var on
+	// macOS, RUNNER~1 on Windows runners), so compare against the resolved path.
+	wantDir, err := filepath.EvalSymlinks(filepath.Dir(exe))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pe.dirs) != 1 || pe.dirs[0] != wantDir {
+		t.Errorf("PATH editor got %v, want [%s]", pe.dirs, wantDir)
 	}
 	out := r.stdout.String()
 	for _, want := range []string{exe, "/plugin uninstall account-switch@nicoarbelaez-tools", "/plugin marketplace remove nicoarbelaez-tools", "Remove-Item"} {
