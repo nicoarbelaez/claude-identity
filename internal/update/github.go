@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/creativeprojects/go-selfupdate"
 )
@@ -56,7 +57,7 @@ func (g *GitHubUpdater) Latest(ctx context.Context) (string, error) {
 
 // UpdateTo replaces the running executable with the given release.
 func (g *GitHubUpdater) UpdateTo(ctx context.Context, version string) error {
-	rel, found, err := g.up.DetectVersion(ctx, g.repo, version)
+	rel, found, err := g.up.DetectVersion(ctx, g.repo, releaseTag(version))
 	if err != nil {
 		return err
 	}
@@ -68,4 +69,10 @@ func (g *GitHubUpdater) UpdateTo(ctx context.Context, version string) error {
 		return err
 	}
 	return g.up.UpdateTo(ctx, rel, exe)
+}
+
+// releaseTag turns a version into its release tag. DetectVersion matches the
+// tag name exactly, and cid tags are "v<semver>".
+func releaseTag(version string) string {
+	return "v" + strings.TrimPrefix(version, "v")
 }

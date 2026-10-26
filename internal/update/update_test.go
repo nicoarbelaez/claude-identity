@@ -133,3 +133,12 @@ func TestNewGitHubUpdaterBuilds(t *testing.T) {
 		t.Fatalf("NewGitHubUpdater() = %v, %v", u, err)
 	}
 }
+
+func TestReleaseTagAddsVPrefix(t *testing.T) {
+	// Release tags are "v<semver>" and go-selfupdate matches the tag name exactly.
+	for in, want := range map[string]string{"0.5.0": "v0.5.0", "v0.5.0": "v0.5.0"} {
+		if got := releaseTag(in); got != want {
+			t.Errorf("releaseTag(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
