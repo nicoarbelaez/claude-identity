@@ -94,6 +94,10 @@ func TestBundleStatus(t *testing.T) {
 		{"missing expiry", `{"refreshToken":"r"}`, StatusUnknown},
 		{"invalid expiry", `{"refreshToken":"r","expiresAt":"soon"}`, StatusUnknown},
 		{"not json", `nope`, StatusUnknown},
+		{"json null", `null`, StatusUnknown},
+		{"empty object", `{}`, StatusUnknown},
+		{"empty fields", `{"accessToken":"","refreshToken":"","expiresAt":0}`, StatusUnknown},
+		{"failed refresh keeps access token", `{"accessToken":"a","refreshToken":""}`, StatusNeedsLogin},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
