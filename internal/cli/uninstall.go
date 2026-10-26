@@ -66,16 +66,20 @@ func (a *app) uninstall(args []string) int {
 	if listErr != nil {
 		fail(a.Config.ProfilesPath, listErr)
 	}
+	vaultFailed := false
 	for _, p := range ps {
 		err := u.Vault.Delete(p.Name)
 		if err != nil && !errors.Is(err, vault.ErrNotFound) {
 			fail(p.Name, err)
+			vaultFailed = true
 			continue
 		}
 		a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallProfile, p.Name))
 	}
 	for _, path := range []string{a.Config.ProfilesPath, u.LockPath} {
-		if path == "" {
+		// Keep the profiles file while keyring entries remain, so running
+		// uninstall again can find and retry them.
+		if path == "" || (vaultFailed && path == a.Config.ProfilesPath) {
 			continue
 		}
 		switch err := os.Remove(path); {

@@ -2,10 +2,6 @@
 
 package pathenv
 
-type noop struct{}
-
-// New returns an Editor that does nothing: only Windows keeps cid on a
-// registry-backed user PATH.
-func New() Editor { return noop{} }
-
-func (noop) RemoveDir(string) (bool, error) { return false, nil }
+// New returns nil: only Windows keeps cid on a registry-backed user PATH, so
+// there is nothing to edit elsewhere and callers skip the PATH step.
+func New() Editor { return nil }

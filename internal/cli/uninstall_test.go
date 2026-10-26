@@ -174,8 +174,8 @@ func TestUninstallPartialFailureKeepsGoing(t *testing.T) {
 	if _, err := r.vault.Get("b"); !errors.Is(err, vault.ErrNotFound) {
 		t.Error("profile b should still be deleted after a failed")
 	}
-	if exists(r.deps.Config.ProfilesPath) {
-		t.Error("profiles file should still be removed")
+	if !exists(r.deps.Config.ProfilesPath) {
+		t.Error("profiles file must stay so a second uninstall can retry profile a")
 	}
 	errOut := r.stderr.String()
 	if !strings.Contains(errOut, "keyring locked") || !strings.Contains(errOut, "registry denied") {

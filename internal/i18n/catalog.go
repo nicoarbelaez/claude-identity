@@ -117,7 +117,7 @@ var catalogEN = map[Key]string{
 	UninstallPathRemoved: "Removed %s from your user PATH. Open a new terminal for it to take effect.",
 	UninstallStepFailed:  "Could not remove %s: %s",
 	UninstallDone:        "cid data removed. Claude Code stays logged in with its current account.",
-	UninstallIncomplete:  "Uninstall finished with errors; see the messages above.",
+	UninstallIncomplete:  "Uninstall finished with errors; see the messages above and run `cid uninstall` again to retry.",
 	UninstallManual:      "To finish, remove the binary and the plugin yourself:\n  1. Binary: %s\n     %s\n  2. In Claude Code run:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
 	UninstallDeleteCmd:   "Delete it with: %s",
 	Usage: `Usage:
@@ -186,7 +186,7 @@ var catalogES = map[Key]string{
 	UninstallPathRemoved: "Se quitó %s del PATH de tu usuario. Abre una terminal nueva para que surta efecto.",
 	UninstallStepFailed:  "No se pudo eliminar %s: %s",
 	UninstallDone:        "Datos de cid eliminados. Claude Code sigue con la sesión de su cuenta actual.",
-	UninstallIncomplete:  "La desinstalación terminó con errores; revisa los mensajes anteriores.",
+	UninstallIncomplete:  "La desinstalación terminó con errores; revisa los mensajes anteriores y vuelve a ejecutar `cid uninstall` para reintentar.",
 	UninstallManual:      "Para terminar, elimina tú mismo el binario y el plugin:\n  1. Binario: %s\n     %s\n  2. En Claude Code ejecuta:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
 	UninstallDeleteCmd:   "Elimínalo con: %s",
 	Usage: `Uso:
