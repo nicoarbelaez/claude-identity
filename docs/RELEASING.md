@@ -22,7 +22,7 @@ The project is pre-1.0 (`bump-minor-pre-major: true`), so breaking changes bump 
 | `feat!:` or a `BREAKING CHANGE:` footer | minor | major |
 | `docs:`, `chore:`, `ci:`, `test:`, `refactor:` | no release | no release |
 
-The first `feat:` after the initial `0.0.0` baseline produces `0.1.0`.
+The first release is `0.1.0`, set by `initial-version` in `release-please-config.json`. Without it, release-please treats the first release (no prior tag) as `1.0.0` regardless of the `0.0.0` manifest baseline.
 
 ## Version sources
 
