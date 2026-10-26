@@ -29,7 +29,7 @@ If S1 fails, the isolated flow reports "no credentials" and falls back to the ma
 ## Checklist
 | ID | Status | Task | Route | Commit |
 |----|--------|------|-------|--------|
-| L1 | [ ] | Isolated login runner (`internal/login`: Options, exec runner, fake, `claudecfg.PathsIn`) | inline | |
+| L1 | [x] | Isolated login runner (`internal/login`: Options, exec runner, fake, `claudecfg.PathsIn`) | inline | |
 | L2 | [ ] | `cid add` with auto login (`swap.AddFrom`, `--console/--sso/--current`, darwin and missing-claude fallback) | bounded writer | |
 | L3 | [ ] | `cid relogin` with auto login (`swap.Relogin`, email match, live store refresh when active) | bounded writer | |
 | L4 | [ ] | Hook guidance: block `add` (without `--current`) and `relogin`, keep `add --current` | bounded writer | |
