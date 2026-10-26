@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.5.0...v0.6.0) (2026-10-26)
+
+
+### Features
+
+* cid update y aviso de versión nueva en cid version ([#29](https://github.com/nicoarbelaez/claude-identity/issues/29)) ([dc6aa0c](https://github.com/nicoarbelaez/claude-identity/commit/dc6aa0c062fb54ab2a0b24e5ec953893464ae937))
+
 ## [0.5.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.4.0...v0.5.0) (2026-10-26)
 
 
