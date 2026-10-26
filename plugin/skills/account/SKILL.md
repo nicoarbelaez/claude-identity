@@ -1,7 +1,7 @@
 ---
 name: account
-description: Switch, list, add or remove Claude Code accounts through the cid CLI.
-argument-hint: "[n|name] | list | add <name> | relogin <n|name> | remove <n|name> | current | config | version"
+description: Switch, list, add or remove Claude Code accounts, and read or change cid settings, through the cid CLI.
+argument-hint: "[n|name] | list | add <name> | relogin <n|name> | remove <n|name> | current | config [get <key> | set <key> <value> | unset <key>] | version"
 disable-model-invocation: true
 allowed-tools: Bash(cid help), Bash(cid add *), Bash(cid relogin *)
 model: haiku
