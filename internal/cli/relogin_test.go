@@ -112,14 +112,15 @@ func TestReloginFallbacksPrintManualSteps(t *testing.T) {
 		name   string
 		setup  func(r *rig) *login.FakeRunner
 		reason i18n.Key
+		args   []any
 	}{
 		{"claude missing", func(r *rig) *login.FakeRunner {
 			return &login.FakeRunner{Fn: func(string, login.Options) error { return login.ErrNotInstalled }}
-		}, i18n.LoginClaudeMissing},
+		}, i18n.LoginClaudeMissing, nil},
 		{"login failed", func(r *rig) *login.FakeRunner {
 			return &login.FakeRunner{Fn: func(string, login.Options) error { return errors.New("exit status 1") }}
-		}, i18n.LoginFailed},
-		{"no credentials", func(r *rig) *login.FakeRunner { return &login.FakeRunner{} }, i18n.LoginNoCredentials},
+		}, i18n.LoginFailed, []any{"exit status 1"}},
+		{"no credentials", func(r *rig) *login.FakeRunner { return &login.FakeRunner{} }, i18n.LoginNoCredentials, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -130,7 +131,7 @@ func TestReloginFallbacksPrintManualSteps(t *testing.T) {
 			if code := r.run("relogin", "a"); code != 1 {
 				t.Fatalf("exit %d, want 1", code)
 			}
-			for _, want := range []string{r.msg(tt.reason), steps(r)} {
+			for _, want := range []string{r.msg(tt.reason, tt.args...), steps(r)} {
 				if !strings.Contains(r.stderr.String(), want) {
 					t.Errorf("stderr = %q, missing %q", r.stderr, want)
 				}
@@ -156,5 +157,24 @@ func TestReloginDarwinFallsBackWithoutLogin(t *testing.T) {
 	}
 	if len(f.Calls) != 0 {
 		t.Error("login started on darwin")
+	}
+}
+
+func TestReloginProfileWithoutEmailIsRefusedBeforeLogin(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	if _, err := r.prof.Add("n"); err != nil { // no saved email
+		t.Fatal(err)
+	}
+	f := loginAs(t, "n@example.com", "tok-n")
+	r.useLogin(f)
+	if code := r.run("relogin", "n"); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if want := r.msg(i18n.ReloginNoEmail, "n", "n"); !strings.Contains(r.stderr.String(), want) {
+		t.Errorf("stderr = %q, want %q", r.stderr, want)
+	}
+	if len(f.Calls) != 0 {
+		t.Error("a login was started for an unverifiable profile")
 	}
 }

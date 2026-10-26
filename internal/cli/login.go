@@ -89,17 +89,24 @@ func (a *app) withIsolatedLogin(opts login.Options, fallback string, save func(s
 		return failWith(a.t(i18n.LoginUnsupportedOS))
 	}
 	if a.Login == nil {
-		return failWith(a.t(i18n.LoginClaudeMissing))
+		// A wiring bug in main, not a missing `claude`.
+		return failWith(a.t(i18n.LoginRunnerMissing))
 	}
 
+	// MkdirTemp creates the directory with mode 0700, so no chmod is needed.
 	dir, err := os.MkdirTemp("", "cid-login-")
 	if err != nil {
 		return a.fail(err, "")
 	}
-	defer func() { _ = os.RemoveAll(dir) }()
-	if err := os.Chmod(dir, 0o700); err != nil {
-		return a.fail(err, "")
-	}
+	defer func() {
+		removeAll := a.RemoveAll
+		if removeAll == nil {
+			removeAll = os.RemoveAll
+		}
+		if err := removeAll(dir); err != nil {
+			a.printf(a.Stderr, "%s\n", a.t(i18n.LoginTempDirLeft, dir))
+		}
+	}()
 
 	// Ctrl+C cancels the login (killing claude) instead of terminating cid, so
 	// the deferred cleanup above still runs.
@@ -111,7 +118,10 @@ func (a *app) withIsolatedLogin(opts login.Options, fallback string, save func(s
 		if errors.Is(err, login.ErrNotInstalled) {
 			return failWith(a.t(i18n.LoginClaudeMissing))
 		}
-		return failWith(a.t(i18n.LoginFailed))
+		if errors.Is(err, login.ErrTimeout) {
+			return failWith(a.t(i18n.LoginTimedOut))
+		}
+		return failWith(a.t(i18n.LoginFailed, err.Error()))
 	}
 
 	src := claudecfg.NewFileStore(claudecfg.PathsIn(dir))

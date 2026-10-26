@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -153,7 +154,7 @@ func TestAddAutoLoginFailureFallsBackAndRemovesTempDir(t *testing.T) {
 	if code := r.run("add", "c"); code != 1 {
 		t.Fatalf("exit %d, want 1", code)
 	}
-	for _, want := range []string{r.msg(i18n.LoginFailed), r.msg(i18n.AddFallback, "c")} {
+	for _, want := range []string{r.msg(i18n.LoginFailed, "exit status 1"), r.msg(i18n.AddFallback, "c")} {
 		if !strings.Contains(r.stderr.String(), want) {
 			t.Errorf("stderr = %q, missing %q", r.stderr, want)
 		}
@@ -182,8 +183,53 @@ func TestAddAutoLoginClaudeMissingFallsBack(t *testing.T) {
 func TestAddAutoLoginWithoutRunnerFallsBack(t *testing.T) {
 	r := newRig(t)
 	r.deps.Login = nil
-	if code := r.run("add", "c"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.AddFallback, "c")) {
+	code := r.run("add", "c")
+	if code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.AddFallback, "c")) {
 		t.Errorf("exit %d, stderr %q", code, r.stderr)
+	}
+	// A missing runner is a wiring bug, not a missing `claude`.
+	if !strings.Contains(r.stderr.String(), r.msg(i18n.LoginRunnerMissing)) ||
+		strings.Contains(r.stderr.String(), r.msg(i18n.LoginClaudeMissing)) {
+		t.Errorf("stderr = %q, want the internal wiring message", r.stderr)
+	}
+}
+
+func TestAddAutoLoginTimeoutIsReported(t *testing.T) {
+	r := newRig(t)
+	f := &login.FakeRunner{Fn: func(string, login.Options) error { return fmt.Errorf("claude: %w", login.ErrTimeout) }}
+	r.useLogin(f)
+	if code := r.run("add", "c"); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	for _, want := range []string{r.msg(i18n.LoginTimedOut), r.msg(i18n.AddFallback, "c")} {
+		if !strings.Contains(r.stderr.String(), want) {
+			t.Errorf("stderr = %q, missing %q", r.stderr, want)
+		}
+	}
+	dirGone(t, f)
+}
+
+func TestAddAutoLoginWarnsWhenTempDirCannotBeRemoved(t *testing.T) {
+	r := newRig(t)
+	f := loginAs(t, "c@example.com", "tok-c")
+	r.useLogin(f)
+	r.deps.RemoveAll = func(dir string) error {
+		_ = os.RemoveAll(dir) // keep the test machine clean
+		return errors.New("file in use")
+	}
+	if code := r.run("add", "c"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if want := r.msg(i18n.LoginTempDirLeft, f.Calls[0].ConfigDir); !strings.Contains(r.stderr.String(), want) {
+		t.Errorf("stderr = %q, want %q", r.stderr, want)
+	}
+}
+
+func TestAddAutoLoginNoWarningWhenTempDirRemoved(t *testing.T) {
+	r := newRig(t)
+	r.useLogin(loginAs(t, "c@example.com", "tok-c"))
+	if code := r.run("add", "c"); code != 0 || r.stderr.Len() != 0 {
+		t.Fatalf("exit %d, stderr %q", code, r.stderr)
 	}
 }
 

@@ -66,6 +66,9 @@ type Deps struct {
 	Stderr    io.Writer
 	// Login runs Claude Code's login in an isolated config dir (cid add/relogin).
 	Login login.Runner
+	// RemoveAll deletes the temporary login directory; nil means os.RemoveAll.
+	// Tests inject a failing one.
+	RemoveAll func(path string) error
 	// GOOS is the operating system; empty means runtime.GOOS. Tests set it.
 	GOOS string
 }
@@ -254,10 +257,12 @@ func (a *app) relogin(args []string) int {
 	if err != nil {
 		return a.fail(err, pos[0])
 	}
-	who := p.Email
-	if who == "" {
-		who = p.Name
+	if p.Email == "" {
+		// Without a saved email the new login could not be verified, so do not
+		// open a browser login that Relogin would refuse afterwards.
+		return a.fail(&swap.NoStoredEmailError{Name: p.Name}, p.Name)
 	}
+	who := p.Email
 	opts := login.Options{Console: flags["console"], SSO: flags["sso"], Email: p.Email}
 	return a.withIsolatedLogin(opts, a.t(i18n.ReloginSteps, who, p.Name), func(src swap.Source) int {
 		res, err := a.Swap.Relogin(p.Name, src)
@@ -391,7 +396,13 @@ func (a *app) fail(err error, arg string) int {
 	var exists *swap.ProfileExistsError
 	var dup *swap.DuplicateAccountError
 	var mismatch *swap.EmailMismatchError
+	var noEmail *swap.NoStoredEmailError
+	var notUpdated *swap.ProfileNotUpdatedError
 	switch {
+	case errors.As(err, &noEmail):
+		msg = a.t(i18n.ReloginNoEmail, noEmail.Name, noEmail.Name)
+	case errors.As(err, &notUpdated):
+		msg = a.t(i18n.ReloginProfileNotUpdated, notUpdated.Name, notUpdated.Name)
 	case errors.As(err, &mismatch):
 		msg = a.t(i18n.ReloginEmailMismatch, mismatch.Got, mismatch.Name, mismatch.Want, mismatch.Name)
 	case errors.As(err, &exists):

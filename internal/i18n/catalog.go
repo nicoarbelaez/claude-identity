@@ -80,6 +80,12 @@ const (
 	ReloginLiveUpdated   Key = "relogin.live_updated"
 	HookAddNeedsTerminal Key = "hook.add_needs_terminal"
 	HookReloginTerminal  Key = "hook.relogin_needs_terminal"
+
+	LoginTimedOut            Key = "login.timed_out"
+	LoginRunnerMissing       Key = "login.runner_missing"
+	LoginTempDirLeft         Key = "login.temp_dir_left"
+	ReloginNoEmail           Key = "relogin.no_email"
+	ReloginProfileNotUpdated Key = "relogin.profile_not_updated"
 )
 
 var catalogEN = map[Key]string{
@@ -139,7 +145,7 @@ var catalogEN = map[Key]string{
 
 	LoginStarting:        "Starting the Claude Code login. Complete it in your browser...",
 	LoginClaudeMissing:   "The `claude` command was not found on PATH.",
-	LoginFailed:          "The Claude Code login did not finish successfully.",
+	LoginFailed:          "The Claude Code login did not finish successfully: %s",
 	LoginNoCredentials:   "The login finished but no credentials were found.",
 	LoginUnsupportedOS:   "Automatic login is not supported on macOS yet.",
 	AddFallback:          "To add the account manually: run /login in Claude Code, then run: cid add %s --current",
@@ -149,6 +155,12 @@ var catalogEN = map[Key]string{
 	ReloginLiveUpdated:   "Claude Code is now using the refreshed login.",
 	HookAddNeedsTerminal: "Adding an account opens a browser login, which needs a terminal. Run `cid add %s` in a terminal, or run /login and then `/account add %s --current`.",
 	HookReloginTerminal:  "Refreshing a login opens a browser login, which needs a terminal. Run `cid relogin %s` in a terminal, or run /login and then `/account add %s --current`.",
+
+	LoginTimedOut:            "The login timed out after 10 minutes.",
+	LoginRunnerMissing:       "Internal error: no login runner is configured.",
+	LoginTempDirLeft:         "Warning: could not delete the temporary login directory %s. It contains credentials: delete it manually.",
+	ReloginNoEmail:           "Profile %q has no saved email, so the new login cannot be checked against it. Re-add it with `cid add %s --force`.",
+	ReloginProfileNotUpdated: "Claude Code already uses the new login, but the copy saved for profile %q could not be updated. Run `cid add %s --current --force` to save it.",
 
 	Usage: `Usage:
   cid                       List profiles
@@ -225,7 +237,7 @@ var catalogES = map[Key]string{
 
 	LoginStarting:        "Iniciando el inicio de sesión de Claude Code. Complétalo en tu navegador...",
 	LoginClaudeMissing:   "No se encontró el comando `claude` en el PATH.",
-	LoginFailed:          "El inicio de sesión de Claude Code no terminó correctamente.",
+	LoginFailed:          "El inicio de sesión de Claude Code no terminó correctamente: %s",
 	LoginNoCredentials:   "El inicio de sesión terminó, pero no se encontraron credenciales.",
 	LoginUnsupportedOS:   "El inicio de sesión automático aún no está disponible en macOS.",
 	AddFallback:          "Para agregar la cuenta manualmente: ejecuta /login en Claude Code y luego: cid add %s --current",
@@ -235,6 +247,12 @@ var catalogES = map[Key]string{
 	ReloginLiveUpdated:   "Claude Code ya usa la sesión renovada.",
 	HookAddNeedsTerminal: "Agregar una cuenta abre un inicio de sesión en el navegador, que necesita una terminal. Ejecuta `cid add %s` en una terminal, o ejecuta /login y luego `/account add %s --current`.",
 	HookReloginTerminal:  "Renovar una sesión abre un inicio de sesión en el navegador, que necesita una terminal. Ejecuta `cid relogin %s` en una terminal, o ejecuta /login y luego `/account add %s --current`.",
+
+	LoginTimedOut:            "El inicio de sesión superó el límite de 10 minutos.",
+	LoginRunnerMissing:       "Error interno: no hay un ejecutor de inicio de sesión configurado.",
+	LoginTempDirLeft:         "Aviso: no se pudo borrar el directorio temporal del inicio de sesión %s. Contiene credenciales: bórralo manualmente.",
+	ReloginNoEmail:           "El perfil %q no tiene un correo guardado, así que no se puede comprobar la nueva sesión. Agrégalo de nuevo con `cid add %s --force`.",
+	ReloginProfileNotUpdated: "Claude Code ya usa la nueva sesión, pero no se pudo actualizar la copia guardada del perfil %q. Ejecuta `cid add %s --current --force` para guardarla.",
 
 	Usage: `Uso:
   cid                       Lista los perfiles
