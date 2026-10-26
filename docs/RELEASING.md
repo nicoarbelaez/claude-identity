@@ -11,6 +11,10 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 
 The release and the build share one workflow so the build runs right after the release is created.
 
+Tags are plain `vX.Y.Z` (`include-component-in-tag: false`); GoReleaser requires a semver tag and fails on release-please's default `<component>-vX.Y.Z`.
+
+To rebuild the artifacts of an existing release (for example after a failed build), run the workflow manually: `gh workflow run release.yml -f tag=vX.Y.Z`. Only the `goreleaser` job runs; `release.mode: keep-existing` keeps the release notes.
+
 ## Commit types and version bumps
 
 The project is pre-1.0 (`bump-minor-pre-major: true`), so breaking changes bump the minor version, not the major.
