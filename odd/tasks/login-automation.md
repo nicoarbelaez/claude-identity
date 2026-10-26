@@ -33,7 +33,8 @@ Out: implementing OAuth, calling Anthropic endpoints, token refresh by us, macOS
 | L2 | [x] | `cid add` with auto login (`swap.AddFrom`, `--console/--sso/--current`, darwin and missing-claude fallback) | bounded writer | c5888f9 |
 | L3 | [x] | `cid relogin` with auto login (`swap.Relogin`, email match, live store refresh when active) | bounded writer | 586565c |
 | L4 | [x] | Hook guidance: block `add` (without `--current`) and `relogin`, keep `add --current` | bounded writer | 75d920d |
-| L5 | [x] | Docs: README Usage table + "Adding accounts", help text en/es, SKILL.md if needed | bounded writer | this commit |
+| L5 | [x] | Docs: README Usage table + "Adding accounts", help text en/es, SKILL.md if needed | bounded writer | a1b7030 |
+| L6 | [x] | Review hardening: Relogin refuses profiles without email and duplicate accounts; active relogin writes and verifies live first (restores on failure), then the vault; temp-dir removal warning; login error text and wiring error; 10 minute login deadline; ExecRunner tests with a helper process | bounded writer | 773bfbf, eb85699, d464462 |
 
 ## Acceptance criteria
 - `cid add <name>` saves the freshly logged-in account as a profile without changing the live login or the active profile.
@@ -48,7 +49,8 @@ Out: implementing OAuth, calling Anthropic endpoints, token refresh by us, macOS
 `go build ./...` (also GOOS=linux and GOOS=darwin), `go vet ./...`, `go test ./...`, `gofmt -l .`, golangci-lint. TDD: RED (compile or assertion failure) before GREEN for every task.
 
 ## Progress
-- L1-L5 done, each with RED observed first (compile or assertion failure) and GREEN after the implementation. Tests use fake runners and temp dirs only; the real keyring and `~/.claude` are never touched.
+- L1-L6 done, each with RED observed first (compile or assertion failure) and GREEN after the implementation. Tests use fake runners and temp dirs only; the real keyring and `~/.claude` are never touched.
+- L6 decisions: swap has no rollback path (Switch does not restore), so Relogin got a small best-effort restore of the previous live login when the live write or verify fails; the 10 minute deadline lives in ExecRunner (Timeout field, DefaultTimeout) and reports login.ErrTimeout; cid relogin refuses a profile without email before opening the browser.
 - Design: `login.Runner` interface (exec + `FakeRunner`); `swap.Service.AddFrom` shares the Add guard (`addFrom`) and neither marks active nor touches live; `swap.Service.Relogin` checks the email, overwrites stored credentials and writes the live store only for the active profile; the login itself runs outside the cross-process lock (only the save is locked).
 - `cid add` without `--current` is now the isolated login; existing live-capture tests were updated to pass `--current`.
 - S1 and S2 confirmed by the user spike; S3 (macOS) still open.
