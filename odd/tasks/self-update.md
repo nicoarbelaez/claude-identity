@@ -62,3 +62,11 @@ Strategy: `ask-on-risk`. Forecast is about 400 authored lines, so one PR.
 - U1-U3: `internal/update` (Updater/Plugin/CommandRunner interfaces, GitHub updater with `checksums.txt` validation, `claude plugin` refresh), `cid update`, release notice in `cid version`, hook rejects `update`. Tests use fakes only. RED observed first (undefined symbols) before implementing.
 - U4: README "Updating" section and usage table row; usage text updated in EN and ES. SKILL.md unchanged: its hint lists no terminal-only commands (`update` is rejected by the hook like `uninstall`).
 - Checks: build (host, linux, darwin), vet, test, gofmt, `go mod tidy` with no diff, `go mod verify` all pass.
+- Review: risk high; the user declined native review for this candidate. Independent verifier ran instead.
+- Fix 1ea0c53: `DetectVersion` matches the tag name exactly, so pass `v<semver>` (RED `TestReleaseTagAddsVPrefix`, then GREEN). Found by a real run: a build stamped 0.4.0 failed with "no release found" before the fix.
+- Fix 6518642: an updater construction error no longer aborts every command; `cid help` alignment restored.
+- Real smoke on Windows after the fix:
+  - `cid version` (0.4.0) shows the 0.5.0 notice; on 0.5.0 it shows nothing.
+  - `cid update` replaced the scratch binary 0.4.0 → 0.5.0 with checksum validation.
+  - Without `claude` on PATH it printed one warning and exited 0.
+- Pending: plugin refresh against a real `claude` install (needs the marketplace added from GitHub).
