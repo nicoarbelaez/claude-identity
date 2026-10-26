@@ -30,6 +30,21 @@ The same operations are available from the CLI binary `cid`. Supported platforms
 
 Signed release binaries from GitHub Releases, `go install github.com/nicoarbelaez/claude-identity/cmd/cid@latest`, and the Claude Code plugin marketplace. An install script may follow.
 
+Install the Claude Code plugin (Claude Code 2.1.275 or later):
+
+```
+/plugin install account-switch --marketplace nicoarbelaez/claude-identity
+```
+
+Or add the marketplace first, then install:
+
+```
+/plugin marketplace add nicoarbelaez/claude-identity
+/plugin install account-switch@nicoarbelaez-tools
+```
+
+Plugin commands are namespaced as `/account-switch:account`.
+
 ## Security note
 
 This tool handles OAuth tokens. It stores them only in your OS keyring and never sends them anywhere. Please report vulnerabilities privately; see [SECURITY.md](SECURITY.md).

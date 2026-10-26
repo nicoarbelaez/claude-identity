@@ -20,7 +20,8 @@ Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitH
 - R1 Hot swap in a single `~/.claude`, no context loss.
 - R2 Spike: verify a running session re-reads credentials changed by another process (first task, blocks design).
 - R3 Last active account persists naturally.
-- R4 Commands `/account`, `/account <n|name>`, `/account config`, `/account add <name>`, short alias, CLI `cid`.
+- R4 Commands `/account`, `/account <n|name>`, `/account config`, `/account add <name>`, short alias, CLI `cid`. Plugin commands are namespaced (`/account-switch:account`); `cid setup` installs a user-level `/account` alias in `~/.claude/commands/`.
+- R14 Plugin and marketplace names must not start with `claude-` (reserved by Claude Code). Plugin `account-switch`, marketplace `nicoarbelaez-tools`; repository name stays `claude-identity`.
 - R5 Expiry: Claude Code refreshes; on failure guided `/login` plus automatic recapture.
 - R6 OS keyring vault, no plaintext.
 - R7 Go.
@@ -34,7 +35,8 @@ Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitH
 ## Checklist
 | ID | Status | Task | Reqs | Route | Commit |
 |----|--------|------|------|-------|--------|
-| T0 | [~] in progress | Scaffold, CI, release pipeline, plugin skeleton, repo security | R7 R10 R11 R12 R13 | delegated direct (2+ non-trivial files) | pending |
+| T0 | [x] done | Scaffold, CI, release pipeline, plugin skeleton, repo security | R7 R10 R11 R12 R13 | delegated direct (2+ non-trivial files) | e30c252 |
+| T0.1 | [~] in progress | Rename plugin/marketplace to pass `claude plugin validate` | R14 | inline (mechanical) | pending |
 | T1 | [ ] | Spike: does a running session re-read externally changed credentials? Blocks design | R2 | inline (experiment) | - |
 | T2 | [ ] | Profile store + keyring vault (TDD) | R3 R6 | delegated direct | - |
 | T3 | [ ] | Swap engine: Windows/Linux file + macOS Keychain adapter | R1 R8 | delegated direct | - |
@@ -44,7 +46,7 @@ Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitH
 | T7 | [ ] | i18n en/es | R9 | delegated direct | - |
 | T8 | [ ] | Install script + first signed release | R10 R11 | delegated direct | - |
 
-T0 remaining (parent): create GitHub repo, push, apply ruleset, enable secret scanning/push protection, fork-workflow approval, decide commit signing.
+T0 closed: repo public, CI (3 OS + lint) and CodeQL green, ruleset `protect-main` active, secret scanning + push protection, Dependabot, private vulnerability reporting, fork-workflow approval, SSH commit signing.
 
 ## Acceptance criteria
 - T1 result documented and design adjusted before T2 starts.
@@ -59,7 +61,9 @@ T0 remaining (parent): create GitHub repo, push, apply ruleset, enable secret sc
 `ask-on-risk`. Forecast is under about 400 authored lines per slice, except the T0 scaffold, which is larger because of boilerplate and docs.
 
 ## Progress
-- T0: files scaffolded locally; first commit pending parent push and repo configuration.
+- T0: done. Evidence: commit e30c252 signed; CI and CodeQL runs green on main.
+- T1 research: verdict unknown. CCSwitcher claims a live re-read per API call (macOS); sharkswap and ccauth say a restart is needed; anthropics/claude-code#23906 reports a running process writing its old token back. Design keeps hot swap as primary, relaunch with `claude --continue` as fallback, plus a guard against write-back. A user-run experiment with two real accounts is still pending.
+- T0.1: `claude plugin validate .` rejected the `claude-identity` plugin name as reserved; renamed.
 
 ## Next step
-Parent creates the GitHub repo and applies security settings, then start T1.
+Merge T0.1, then run the T1 experiment with the user.

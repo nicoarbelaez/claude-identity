@@ -1,12 +1,13 @@
 {
-  "name": "claude-identity",
+  "name": "nicoarbelaez-tools",
+  "description": "Developer tools by nicoarbelaez, including fast account switching for Claude Code.",
   "owner": {
     "name": "nicoarbelaez",
     "url": "https://github.com/nicoarbelaez"
   },
   "plugins": [
     {
-      "name": "claude-identity",
+      "name": "account-switch",
       "source": "./plugin",
       "description": "Hot-swap between multiple Anthropic accounts inside a running Claude Code session."
     }

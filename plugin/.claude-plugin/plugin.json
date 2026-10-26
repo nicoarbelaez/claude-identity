@@ -1,5 +1,5 @@
 {
-  "name": "claude-identity",
+  "name": "account-switch",
   "version": "0.0.0",
   "description": "Hot-swap between multiple Anthropic accounts inside a running Claude Code session via /account commands backed by the cid CLI.",
   "author": {
