@@ -206,6 +206,9 @@ func TestSwitchDetectsFailedVerification(t *testing.T) {
 	if _, err := e.svc.Switch("a"); !errors.Is(err, ErrVerify) {
 		t.Fatalf("want ErrVerify, got %v", err)
 	}
+	if active, err := e.prof.Active(); err != nil || active.Name != "b" {
+		t.Fatalf("active profile changed despite failed verify: %+v, %v", active, err)
+	}
 }
 
 func TestLockContentionTimesOut(t *testing.T) {

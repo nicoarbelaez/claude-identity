@@ -176,10 +176,10 @@ func (s *Service) switchTo(arg string) (Result, error) {
 	if err := s.Live.Write(next); err != nil {
 		return Result{}, err
 	}
-	if err := s.Profiles.SetActive(target.Name); err != nil {
+	if err := s.verify(next); err != nil {
 		return Result{}, err
 	}
-	if err := s.verify(next); err != nil {
+	if err := s.Profiles.SetActive(target.Name); err != nil {
 		return Result{}, err
 	}
 	res.RemoteControlWarning = true
