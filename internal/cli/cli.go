@@ -61,6 +61,8 @@ type Deps struct {
 	Swap     Swapper
 	Lang     i18n.Lang
 	Config   Config
+	// Settings is the config.json store behind `cid config`; nil disables it.
+	Settings SettingsPort
 	// Uninstall holds the collaborators of `cid uninstall`.
 	Uninstall UninstallDeps
 	Stdin     io.Reader // read only by the internal `hook` command
@@ -343,21 +345,6 @@ func (a *app) remove(args []string) int {
 		return a.fail(err, ref)
 	}
 	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileRemoved, p.Name))
-	return exitOK
-}
-
-func (a *app) config(args []string) int {
-	if _, _, ok := parse("config", args, false, 0); !ok {
-		return a.usageError("")
-	}
-	backend := a.t(i18n.BackendFile)
-	if a.Config.Keychain {
-		backend = a.t(i18n.BackendKeychain)
-	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigProfilesPath, a.Config.ProfilesPath))
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigClaudeDir, a.Config.ClaudeDir))
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigBackend, backend))
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ConfigLanguage, string(a.Lang)))
 	return exitOK
 }
 

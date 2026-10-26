@@ -170,7 +170,12 @@ var catalogEN = map[Key]string{
   cid relogin <n|name> [--console] [--sso]
                             Log in again and refresh the profile's saved login
   cid current [--json]      Show the active profile
-  cid config                Show config locations and language
+  cid config [--json]       Show paths and settings
+  cid config get <key> [--json]
+                            Print one setting value
+  cid config set <key> <value>
+                            Change a setting (for example: language es)
+  cid config unset <key>    Restore a setting to its default
   cid uninstall [--yes]     Remove all cid data (profiles, stored credentials, PATH entry)
   cid version               Show the version
   cid help                  Show this help`,
@@ -260,7 +265,12 @@ var catalogES = map[Key]string{
   cid relogin <n|nombre> [--console] [--sso]
                             Inicia sesión de nuevo y renueva la sesión guardada del perfil
   cid current [--json]      Muestra el perfil activo
-  cid config                Muestra las rutas de configuración y el idioma
+  cid config [--json]       Muestra las rutas y los ajustes
+  cid config get <clave> [--json]
+                            Muestra el valor de un ajuste
+  cid config set <clave> <valor>
+                            Cambia un ajuste (por ejemplo: language es)
+  cid config unset <clave>  Restaura un ajuste a su valor predeterminado
   cid uninstall [--yes]     Elimina todos los datos de cid (perfiles, credenciales guardadas, entrada del PATH)
   cid version               Muestra la versión
   cid help                  Muestra esta ayuda`,
