@@ -112,7 +112,8 @@ The plugin provides one skill, `account`, whose command is answered by a hook th
 /account isa          switch to the profile named isa
 /account add isa     log in in the browser and save the account as "isa"
 /account relogin isa refresh the login of "isa"
-/account config       show paths, backend and language
+/account config       show paths, backend, language and settings
+/account config set language es   save the interface language
 ```
 
 `list`, `remove`, `current` and `version` are forwarded too. Claude never runs these on its own (`disable-model-invocation: true`); you must type them.
@@ -148,7 +149,10 @@ Inside Claude Code, `/account add` and `/account relogin` run the same login fro
 | `cid remove <n\|name>` | Remove a profile and its keyring entry. The active profile cannot be removed. |
 | `cid relogin <n\|name> [--console] [--sso]` | Log in again through Claude Code as the profile's account and refresh its saved login (and the live login if the profile is active). Refuses a different account. If the login cannot run, it prints the cause in one line. |
 | `cid current [--json]` | Show the active profile and its token status. |
-| `cid config` | Show the profiles file, the Claude config directory, the credential backend and the language. |
+| `cid config [--json]` | Show the file locations, the credential backend, the language and every setting with its value and source. See [Configuration](#configuration). |
+| `cid config get <key> [--json]` | Print one setting value. Exit `2` for an unknown key. |
+| `cid config set <key> <value>` | Validate and save a setting in `config.json`. Exit `2` for an unknown key or an invalid value. |
+| `cid config unset <key>` | Remove a setting from `config.json` so its default applies again. |
 | `cid version` | Show the version. |
 
 The text output of `cid list` and `cid current` is meant for people and may change between versions; scripts should use `--json`. `--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). Exit codes: `0` success, `1` runtime error, `2` usage error.
@@ -157,9 +161,49 @@ The text output of `cid list` and `cid current` is meant for people and may chan
 
 The status column (and the `status` JSON field) is one of `ok`, `access_expired` (Claude Code refreshes it on next use), `needs_login` (no refresh token; run `cid relogin`) or `unknown`. It is computed locally from the expiry time and the presence of a refresh token, without contacting Anthropic, so it cannot prove a token is still accepted. A saved copy can also go stale if the same account is used on another machine; if a switch then asks you to sign in again, run `cid relogin <name>`.
 
+## Configuration
+
+```
+cid config                     show paths and every setting (value and source)
+cid config get language        print one value
+cid config set language es     validate and save
+cid config unset language      back to the default
+```
+
+The same commands work in the plugin, for example `/account config set language es`.
+
+| Setting | Values | Default | Environment override | Meaning |
+|---------|--------|---------|----------------------|---------|
+| `language` | `auto`, `en`, `es` | `auto` | `CID_LANG` | Interface language. `auto` follows the detection order in [Language](#language). |
+
+A setting is resolved in this order: the environment variable, then `config.json`, then the default. `cid config` shows which one applied in the `(source)` column (`environment`, `file` or `default`).
+
+**Files.** Settings live in `config.json`, next to `profiles.json`, in `os.UserConfigDir()/cid` (`%AppData%\cid` on Windows, `~/.config/cid` on Linux, `~/Library/Application Support/cid` on macOS) or in `$CID_CONFIG_DIR` when set. It is a flat JSON object such as `{"language": "es"}`. Both files are validated against an embedded JSON Schema every time they are read.
+
+**Hand edits and recovery.** Both files are written atomically, and each successful write refreshes a `.bak` copy of the last good state. If you edit a file by hand and break it, cid keeps working:
+
+- A file that is not valid JSON, has the wrong types, a profile name that is not allowed or repeated, or a repeated index is moved to `<file>.corrupt-<timestamp>`. cid then restores the `.bak` copy when that is valid, or starts from an empty file, and prints one warning line on stderr with the location of the moved file.
+- An `active` marker that names a profile that does not exist is cleared, with a warning.
+- In `config.json`, an unknown key is ignored with a warning (and kept when cid rewrites the file), and an invalid value is ignored so the default applies, also with a warning.
+- Recovery never deletes keyring entries. If profiles seem to be missing after a recovery, re-add them with `cid add`, or copy the entries you need from the `.corrupt-*` file.
+
+**JSON contract.** `cid config --json` and `cid config get <key> --json` are the stable interface for tools:
+
+```json
+{
+  "paths": {"profiles": "...", "config": "...", "claude_dir": "..."},
+  "settings": [
+    {"key": "language", "value": "es", "source": "file", "default": "auto", "kind": "enum",
+     "allowed": ["auto", "en", "es"], "env": "CID_LANG", "description": "..."}
+  ]
+}
+```
+
+`source` is `env`, `file` or `default`. `get --json` prints one object of the `settings` array. `cid uninstall` also removes `config.json` and the `.bak` and `.corrupt-*` copies.
+
 ## Language
 
-`cid` speaks English and Spanish. The language is picked in this order, and the first match wins:
+`cid` speaks English and Spanish. Unless `language` is set to `en` or `es` (see [Configuration](#configuration)), the language is picked in this order, and the first match wins:
 
 1. `CID_LANG` environment variable (`en` or `es`, case-insensitive).
 2. The Claude Code `language` setting (`settings.json`, overridden by `settings.local.json`, in `CLAUDE_CONFIG_DIR` or `~/.claude`). Values such as `Spanish`, `español` or `es` select Spanish; `English` or `en` select English; anything else is ignored.

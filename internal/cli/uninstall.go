@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nicoarbelaez/claude-identity/internal/fsutil"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/pathenv"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
@@ -76,10 +77,16 @@ func (a *app) uninstall(args []string) int {
 		}
 		a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallProfile, p.Name))
 	}
-	for _, path := range []string{a.Config.ProfilesPath, u.LockPath} {
-		// Keep the profiles file while keyring entries remain, so running
-		// uninstall again can find and retry them.
-		if path == "" || (vaultFailed && path == a.Config.ProfilesPath) {
+	// Keep the profiles file (and its backups) while keyring entries remain,
+	// so running uninstall again can find and retry them.
+	var files []string
+	if !vaultFailed {
+		files = append(files, fileFamily(a.Config.ProfilesPath)...)
+	}
+	files = append(files, fileFamily(a.Config.ConfigPath)...)
+	files = append(files, u.LockPath)
+	for _, path := range files {
+		if path == "" {
 			continue
 		}
 		switch err := os.Remove(path); {
@@ -119,6 +126,18 @@ func (a *app) uninstall(args []string) int {
 		return exitRuntime
 	}
 	return exitOK
+}
+
+// fileFamily returns path plus its .bak and .corrupt-* siblings (nil for "").
+func fileFamily(path string) []string {
+	if path == "" {
+		return nil
+	}
+	out := []string{path, fsutil.BackupPath(path)}
+	if m, err := filepath.Glob(path + ".corrupt-*"); err == nil {
+		out = append(out, m...)
+	}
+	return out
 }
 
 // installDir is the resolved directory of the running binary, or "".

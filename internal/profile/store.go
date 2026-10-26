@@ -1,6 +1,7 @@
 package profile
 
 import (
+	_ "embed" // profiles.schema.json
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/nicoarbelaez/claude-identity/internal/fsutil"
 )
 
 var (
@@ -48,7 +51,8 @@ func DefaultPath() (string, error) {
 // Store persists profile metadata (never secrets) as JSON.
 // It is not safe for concurrent use across processes.
 type Store struct {
-	path string
+	notify func(fsutil.Notice)
+	path   string
 }
 
 // NewStore returns a Store backed by the JSON file at path.
@@ -178,47 +182,84 @@ func find(ps []Profile, name string) int {
 	return -1
 }
 
+// WithNotifier sets the callback that receives recovery notices (a broken
+// file moved aside, a dangling active marker cleared). It returns s.
+func (s *Store) WithNotifier(fn func(fsutil.Notice)) *Store {
+	s.notify = fn
+	return s
+}
+
+func (s *Store) emit(n fsutil.Notice) {
+	if s.notify != nil {
+		s.notify(n)
+	}
+}
+
+// load reads profiles.json. A file that fails validation never aborts the
+// command: it is moved aside and replaced by the last good .bak, or by an
+// empty store. Keyring entries are not touched.
 func (s *Store) load() (fileData, error) {
 	var d fileData
-	b, err := os.ReadFile(s.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return d, nil
-	}
+	raw, n, err := fsutil.LoadValidated(s.path, validate)
 	if err != nil {
 		return d, fmt.Errorf("read profiles: %w", err)
 	}
-	if err := json.Unmarshal(b, &d); err != nil {
-		return d, fmt.Errorf("parse profiles: %w", err)
+	if n != nil {
+		s.emit(*n)
+	}
+	if raw == nil {
+		return d, nil
+	}
+	if err := json.Unmarshal(raw, &d); err != nil { // unreachable after validate
+		return fileData{}, fmt.Errorf("parse profiles: %w", err)
+	}
+	if d.Active != "" && find(d.Profiles, d.Active) < 0 {
+		s.emit(fsutil.Notice{Kind: fsutil.KindActiveCleared, Path: s.path, Detail: d.Active})
+		d.Active = ""
+		_ = s.save(d) // best effort: the in-memory state is already repaired
 	}
 	return d, nil
 }
 
-// save writes atomically: temp file in the same dir, then rename.
-func (s *Store) save(d fileData) error {
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
+//go:embed profiles.schema.json
+var schemaDoc []byte
+
+var schema = fsutil.MustCompileSchema("profiles.schema.json", schemaDoc)
+
+// validate checks the JSON Schema plus the rules a schema cannot express:
+// unique names (case-insensitive) and unique indexes.
+func validate(raw []byte) error {
+	if err := schema.Validate(raw); err != nil {
+		return err
 	}
+	var d fileData
+	if err := json.Unmarshal(raw, &d); err != nil {
+		return err
+	}
+	names := map[string]bool{}
+	indexes := map[int]bool{}
+	for _, p := range d.Profiles {
+		key := strings.ToLower(p.Name)
+		if names[key] {
+			return fmt.Errorf("duplicate profile name %q", p.Name)
+		}
+		if indexes[p.Index] {
+			return fmt.Errorf("duplicate profile index %d", p.Index)
+		}
+		names[key], indexes[p.Index] = true, true
+	}
+	return nil
+}
+
+// save writes atomically (temp file, fsync, rename) and refreshes the .bak
+// copy of the last good state.
+func (s *Store) save(d fileData) error {
 	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".profiles-*.tmp") // created 0600
-	if err != nil {
-		return fmt.Errorf("create temp file: %w", err)
-	}
-	tmpName := tmp.Name()
-	fail := func(err error) error {
-		return errors.Join(err, os.Remove(tmpName))
-	}
-	if _, err := tmp.Write(b); err != nil {
-		return fail(errors.Join(fmt.Errorf("write temp file: %w", err), tmp.Close()))
-	}
-	if err := tmp.Close(); err != nil {
-		return fail(fmt.Errorf("close temp file: %w", err))
-	}
-	if err := os.Rename(tmpName, s.path); err != nil {
-		return fail(fmt.Errorf("replace profiles: %w", err))
+	if err := fsutil.WriteAtomicBackup(s.path, b); err != nil {
+		return fmt.Errorf("save profiles: %w", err)
 	}
 	return nil
 }
