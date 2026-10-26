@@ -39,6 +39,7 @@ const (
 	RemoveActive       Key = "error.remove_active"
 	GenericError       Key = "error.generic"
 	UnknownCommand     Key = "error.unknown_command"
+	HookInvalidArgs    Key = "error.hook_invalid_args"
 	Usage              Key = "usage.text"
 )
 
@@ -75,6 +76,7 @@ var catalogEN = map[Key]string{
 	RemoveActive:       "Cannot remove %q: it is the active profile. Switch to another profile first.",
 	GenericError:       "Error: %s",
 	UnknownCommand:     "Unknown command %q.",
+	HookInvalidArgs:    "Invalid arguments. Use only profile names or numbers (a-z, 0-9, '.', '_', '-'), or --json.",
 	Usage: `Usage:
   cid                       List profiles
   cid list [--json]         List profiles
@@ -121,6 +123,7 @@ var catalogES = map[Key]string{
 	RemoveActive:       "No se puede eliminar %q: es el perfil activo. Cambia primero a otro perfil.",
 	GenericError:       "Error: %s",
 	UnknownCommand:     "Comando desconocido %q.",
+	HookInvalidArgs:    "Argumentos no válidos. Usa solo nombres o números de perfil (a-z, 0-9, '.', '_', '-'), o --json.",
 	Usage: `Uso:
   cid                       Lista los perfiles
   cid list [--json]         Lista los perfiles
