@@ -81,6 +81,25 @@ Then restart Claude Code so it picks up `cid` on your `PATH`. Plugin commands ar
 
 To try the plugin from a local checkout without installing, run `claude --plugin-dir ./plugin`.
 
+## Uninstall
+
+```sh
+cid uninstall          # lists what it will remove and asks for confirmation
+cid uninstall --yes    # no confirmation
+```
+
+`cid uninstall` removes every saved profile's stored credentials (OS keyring), the profiles file and the now-empty `cid` config folder, and, on Windows, the install directory from your user `PATH`. It never touches Claude Code's own login (`~/.claude/.credentials.json`, `~/.claude.json`, or the macOS `Claude Code-credentials` Keychain item), so you stay logged in with whichever account is live. If a step fails it keeps going, reports each failure and exits 1. It is not available through the plugin hook; run it in a terminal.
+
+`cid` cannot delete its own running binary on Windows, so finish by hand:
+
+1. Delete the binary. `cid uninstall` prints its path and the exact command (`rm "<path>"` on macOS and Linux, `Remove-Item "<path>"` in PowerShell on Windows).
+2. Remove the plugin from Claude Code:
+
+   ```
+   /plugin uninstall account-switch@nicoarbelaez-tools
+   /plugin marketplace remove nicoarbelaez-tools
+   ```
+
 ## Using the plugin
 
 The plugin provides one skill, `account`, whose command is answered by a hook that runs `cid` (see [Instant responses](#instant-responses)). Plugin skills are namespaced, so the full name is `/account-switch:account`. The bare `/account` also works as long as no other command uses that name.

@@ -50,6 +50,22 @@ const (
 	ReloginSteps        Key = "relogin.steps"
 )
 
+// Message keys for `cid uninstall`.
+const (
+	UninstallPlan        Key = "uninstall.plan"
+	UninstallPlanPath    Key = "uninstall.plan_path"
+	UninstallPrompt      Key = "uninstall.prompt"
+	UninstallAborted     Key = "uninstall.aborted"
+	UninstallProfile     Key = "uninstall.profile"
+	UninstallFileRemoved Key = "uninstall.file_removed"
+	UninstallPathRemoved Key = "uninstall.path_removed"
+	UninstallStepFailed  Key = "uninstall.step_failed"
+	UninstallDone        Key = "uninstall.done"
+	UninstallIncomplete  Key = "uninstall.incomplete"
+	UninstallManual      Key = "uninstall.manual"
+	UninstallDeleteCmd   Key = "uninstall.delete_cmd"
+)
+
 var catalogEN = map[Key]string{
 	ProfileAdded:       "Profile %q added.",
 	ProfileRemoved:     "Profile %q removed.",
@@ -91,6 +107,19 @@ var catalogEN = map[Key]string{
 	StatusUnknown:       "unknown",
 	CurrentStatus:       "Status: %s",
 	ReloginSteps:        "1. In Claude Code run /login and sign in as %s.\n2. Run: cid add %s",
+
+	UninstallPlan:        "This will remove:\n  - %d saved profile(s) and their stored credentials\n  - the profiles file and cid config folder: %s",
+	UninstallPlanPath:    "  - %s from your user PATH",
+	UninstallPrompt:      "Claude Code's own login is not touched. Continue? [y/N] ",
+	UninstallAborted:     "Nothing removed.",
+	UninstallProfile:     "Removed stored credentials of profile %q.",
+	UninstallFileRemoved: "Removed %s.",
+	UninstallPathRemoved: "Removed %s from your user PATH. Open a new terminal for it to take effect.",
+	UninstallStepFailed:  "Could not remove %s: %s",
+	UninstallDone:        "cid data removed. Claude Code stays logged in with its current account.",
+	UninstallIncomplete:  "Uninstall finished with errors; see the messages above and run `cid uninstall` again to retry.",
+	UninstallManual:      "To finish, remove the binary and the plugin yourself:\n  1. Binary: %s\n     %s\n  2. In Claude Code run:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
+	UninstallDeleteCmd:   "Delete it with: %s",
 	Usage: `Usage:
   cid                       List profiles
   cid list [--json]         List profiles
@@ -101,6 +130,7 @@ var catalogEN = map[Key]string{
   cid relogin <n|name>      Show the steps to refresh a profile's login
   cid current [--json]      Show the active profile
   cid config                Show config locations and language
+  cid uninstall [--yes]     Remove all cid data (profiles, stored credentials, PATH entry)
   cid version               Show the version
   cid help                  Show this help`,
 }
@@ -146,6 +176,19 @@ var catalogES = map[Key]string{
 	StatusUnknown:       "desconocido",
 	CurrentStatus:       "Estado: %s",
 	ReloginSteps:        "1. En Claude Code ejecuta /login e inicia sesión como %s.\n2. Ejecuta: cid add %s",
+
+	UninstallPlan:        "Se eliminará:\n  - %d perfil(es) guardado(s) y sus credenciales almacenadas\n  - el archivo de perfiles y la carpeta de configuración de cid: %s",
+	UninstallPlanPath:    "  - %s del PATH de tu usuario",
+	UninstallPrompt:      "La sesión propia de Claude Code no se toca. ¿Continuar? [s/N] ",
+	UninstallAborted:     "No se eliminó nada.",
+	UninstallProfile:     "Se eliminaron las credenciales almacenadas del perfil %q.",
+	UninstallFileRemoved: "Se eliminó %s.",
+	UninstallPathRemoved: "Se quitó %s del PATH de tu usuario. Abre una terminal nueva para que surta efecto.",
+	UninstallStepFailed:  "No se pudo eliminar %s: %s",
+	UninstallDone:        "Datos de cid eliminados. Claude Code sigue con la sesión de su cuenta actual.",
+	UninstallIncomplete:  "La desinstalación terminó con errores; revisa los mensajes anteriores y vuelve a ejecutar `cid uninstall` para reintentar.",
+	UninstallManual:      "Para terminar, elimina tú mismo el binario y el plugin:\n  1. Binario: %s\n     %s\n  2. En Claude Code ejecuta:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
+	UninstallDeleteCmd:   "Elimínalo con: %s",
 	Usage: `Uso:
   cid                       Lista los perfiles
   cid list [--json]         Lista los perfiles
@@ -156,6 +199,7 @@ var catalogES = map[Key]string{
   cid relogin <n|nombre>    Muestra los pasos para renovar la sesión de un perfil
   cid current [--json]      Muestra el perfil activo
   cid config                Muestra las rutas de configuración y el idioma
+  cid uninstall [--yes]     Elimina todos los datos de cid (perfiles, credenciales guardadas, entrada del PATH)
   cid version               Muestra la versión
   cid help                  Muestra esta ayuda`,
 }

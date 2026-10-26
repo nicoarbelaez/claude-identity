@@ -72,8 +72,11 @@ func (a *app) hook() int {
 }
 
 func validHookArgs(args []string) bool {
-	if len(args) > 0 && args[0] == "hook" { // no recursion
-		return false
+	if len(args) > 0 { // no recursion, and uninstall is terminal-only
+		switch strings.ToLower(args[0]) {
+		case "hook", "uninstall":
+			return false
+		}
 	}
 	for _, tok := range args {
 		if !hookToken.MatchString(tok) && tok != "--json" {

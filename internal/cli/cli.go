@@ -56,9 +56,11 @@ type Deps struct {
 	Swap     Swapper
 	Lang     i18n.Lang
 	Config   Config
-	Stdin    io.Reader // read only by the internal `hook` command
-	Stdout   io.Writer
-	Stderr   io.Writer
+	// Uninstall holds the collaborators of `cid uninstall`.
+	Uninstall UninstallDeps
+	Stdin     io.Reader // read only by the internal `hook` command
+	Stdout    io.Writer
+	Stderr    io.Writer
 }
 
 // Run executes one cid invocation and returns the process exit code:
@@ -84,6 +86,8 @@ func Run(d Deps, args []string) int {
 		return a.current(rest)
 	case "config":
 		return a.config(rest)
+	case "uninstall":
+		return a.uninstall(rest)
 	case "version":
 		return a.version(rest)
 	case "hook": // internal: plugin UserPromptExpansion hook, not in the usage text
