@@ -28,6 +28,7 @@ function Test-PathContains([string]$PathList, [string]$Dir) {
 # Append $Dir to the user PATH in HKCU, keeping %VAR% entries unexpanded. Returns $false if already present.
 function Add-ToUserPath([string]$Dir) {
     $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    if ($null -eq $key) { throw 'Cannot open HKCU\Environment for writing.' }
     try {
         $raw = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
         if (Test-PathContains $raw $Dir) { return $false }
@@ -38,12 +39,17 @@ function Add-ToUserPath([string]$Dir) {
         $key.SetValue('Path', $new, $kind)
     }
     finally { $key.Close() }
-    # Tell running programs (e.g. Explorer) that the environment changed.
-    if (-not ('CidNative.Env' -as [type])) {
-        Add-Type -Namespace CidNative -Name Env -MemberDefinition '[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
+    # Best effort: tell running programs (e.g. Explorer) that the environment changed.
+    # The PATH is already saved, so a failure here only means new terminals need a sign-out to see it.
+    try {
+        if (-not ('CidNative.Env' -as [type])) {
+            Add-Type -Namespace CidNative -Name Env -MemberDefinition '[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
+        }
+        $res = [UIntPtr]::Zero
+        # HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG, 5 s timeout.
+        [void][CidNative.Env]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res)
     }
-    $res = [UIntPtr]::Zero
-    [void][CidNative.Env]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res)
+    catch { Write-Verbose "Environment change broadcast failed: $($_.Exception.Message)" }
     return $true
 }
 
