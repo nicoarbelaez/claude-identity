@@ -17,3 +17,7 @@ Thumbs.db
 # Secrets
 .env
 *.local.md
+
+# Claude Code agent worktrees
+.claude/worktrees/
+.atl/

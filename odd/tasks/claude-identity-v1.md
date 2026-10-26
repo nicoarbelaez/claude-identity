@@ -36,9 +36,10 @@ Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitH
 | ID | Status | Task | Reqs | Route | Commit |
 |----|--------|------|------|-------|--------|
 | T0 | [x] done | Scaffold, CI, release pipeline, plugin skeleton, repo security | R7 R10 R11 R12 R13 | delegated direct (2+ non-trivial files) | e30c252 |
-| T0.1 | [~] in progress | Rename plugin/marketplace to pass `claude plugin validate` | R14 | inline (mechanical) | pending |
-| T1 | [ ] | Spike: does a running session re-read externally changed credentials? Blocks design | R2 | inline (experiment) | - |
-| T2 | [ ] | Profile store + keyring vault (TDD) | R3 R6 | delegated direct | - |
+| T0.1 | [x] done | Rename plugin/marketplace to pass `claude plugin validate` | R14 | inline (mechanical) | 75b96f2 (#1) |
+| T1 | [x] done | Spike: does a running session re-read externally changed credentials? Blocks design | R2 | delegated direct (kit) + user-run experiment | 200dbf5 (#2), results in this PR |
+| T2 | [x] done | Profile store + keyring vault (TDD) | R3 R6 | delegated direct | d34ae6a (#3) |
+| T8a | [~] in review | Release automation (release-please + GoReleaser) and verified install scripts | R10 R11 | delegated direct + independent verifier | PR #4 |
 | T3 | [ ] | Swap engine: Windows/Linux file + macOS Keychain adapter | R1 R8 | delegated direct | - |
 | T4 | [ ] | CLI commands | R4 | delegated direct | - |
 | T5 | [ ] | Plugin `/account` commands | R4 R10 | delegated direct | - |
@@ -62,8 +63,10 @@ T0 closed: repo public, CI (3 OS + lint) and CodeQL green, ruleset `protect-main
 
 ## Progress
 - T0: done. Evidence: commit e30c252 signed; CI and CodeQL runs green on main.
-- T1 research: verdict unknown. CCSwitcher claims a live re-read per API call (macOS); sharkswap and ccauth say a restart is needed; anthropics/claude-code#23906 reports a running process writing its old token back. Design keeps hot swap as primary, relaunch with `claude --continue` as fallback, plus a guard against write-back. A user-run experiment with two real accounts is still pending.
 - T0.1: `claude plugin validate .` rejected the `claude-identity` plugin name as reserved; renamed.
+- T1: done. User-run experiment on Claude Code 2.1.310 / Windows 11 (see `docs/spikes/r2-hot-swap.md`): a running session picked up swapped credentials on the next request with the same Session ID and no context loss, and did not write the old account back while open or on exit. R1 hot swap confirmed as the primary design; `claude --continue` relaunch stays only as a documented fallback. Untested: token-refresh race, macOS Keychain.
+- T2: done. `internal/profile`, `internal/vault` (keyring with chunking for the 2560-byte Windows limit), `internal/credentials`. Open for T3: no cross-process lock on `profiles.json`.
+- T8a: PR #4 verified (goreleaser check, snapshot names match install scripts, actionlint, shellcheck, PowerShell parse 0 errors); awaiting merge decision.
 
 ## Next step
-Merge T0.1, then run the T1 experiment with the user.
+T3 swap engine (key-level write-back check, file lock, Remote Control warning) and T7 i18n in parallel; then T4 CLI, T5 plugin commands, T6 expiry handling.

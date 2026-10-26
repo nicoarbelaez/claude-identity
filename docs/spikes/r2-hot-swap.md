@@ -119,15 +119,22 @@ Remove-Item -Recurse -Force "$HOME\.cid-spike"
 
 | # | Question | Observed | Notes |
 |---|----------|----------|-------|
-| 1a | After `swap b`, does running S show account B on next prompt/`/status`? | | |
-| 1b | Did S error (auth/401) or keep working? | | |
-| 1c | Was conversation context preserved in S? | | |
-| 2a | Did `watch` report WRITE-BACK while S was open? | | |
-| 2b | Did exiting S write old credentials back? Which key(s)? | | |
-| 2c | Account matched by `status` after S exited | | |
-| 3a | `swap b` then `claude --continue`: account shown | | |
-| 3b | Same conversation resumed? | | |
-| 4 | Claude Code version (`claude --version`), OS | | |
+| 1a | After `swap b`, does running S show account B on next prompt/`/status`? | Yes | `/status` changed from account A to account B; same Session ID before and after. |
+| 1b | Did S error (auth/401) or keep working? | Kept working | Next prompt answered normally. Remote Control disconnected with "signed-in claude.ai account or organization changed on this machine". |
+| 1c | Was conversation context preserved in S? | Yes | Same session continued without restart. |
+| 2a | Did `watch` report WRITE-BACK while S was open? | False positive | Reported 4 times, but only because S rewrites unrelated keys of `~/.claude.json`; `claudeAiOauth` and `oauthAccount` were unchanged vs the swapped profile every time. |
+| 2b | Did exiting S write old credentials back? Which key(s)? | No | Ran `swap a` with S open, S showed account A in `/status`, then `/exit`. |
+| 2c | Account matched by `status` after S exited | a | `claude auth status` also reported account A. |
+| 3a | `swap b` then `claude --continue`: account shown | Not run | Not needed: live swap works. |
+| 3b | Same conversation resumed? | Not run | Not needed: live swap works. |
+| 4 | Claude Code version (`claude --version`), OS | 2.1.310, Windows 11 | Single run, one machine. macOS Keychain and Linux not tested. |
+
+**Verdict (2026-10-26):** in-session hot swap by file replacement is viable. A running session picks up swapped credentials on the next request and does not write the old account back while open or on exit.
+
+Follow-ups for T3:
+- Write-back detection must compare only `claudeAiOauth` and `oauthAccount`, never the whole `~/.claude.json` hash.
+- Not covered: a token refresh by the running session racing a swap, and macOS Keychain behavior. Re-run this kit after major Claude Code releases.
+- Warn the user that Remote Control disconnects after a swap.
 
 Decision input for T1: if 1a is "yes" and 2b is "no", in-session hot swap by
 file replacement is viable. If 1a is "no" but 3a/3b succeed, fall back to
