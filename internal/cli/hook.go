@@ -6,8 +6,6 @@ import (
 	"io"
 	"regexp"
 	"strings"
-
-	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 )
 
 // maxHookInput caps how much of the hook payload is read from stdin.
@@ -47,16 +45,20 @@ func (a *app) hook() int {
 		return exitOK
 	}
 
+	// Invalid tokens and failing runs pass through, so the skill runs and the
+	// model can explain the error to the user.
 	args := strings.Fields(in.CommandArgs)
 	if !validHookArgs(args) {
-		return a.block(a.t(i18n.HookInvalidArgs) + "\n" + a.t(i18n.Usage))
+		return exitOK
 	}
 
 	var out, errOut bytes.Buffer
 	d := a.Deps
 	d.Stdout, d.Stderr = &out, &errOut
-	Run(d, args)
-	return a.block(out.String() + errOut.String())
+	if Run(d, args) != exitOK {
+		return exitOK
+	}
+	return a.block(out.String())
 }
 
 func validHookArgs(args []string) bool {

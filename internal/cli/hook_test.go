@@ -89,12 +89,14 @@ func TestHookRunsSwitchInProcess(t *testing.T) {
 	}
 }
 
-func TestHookRejectsInvalidTokens(t *testing.T) {
-	for _, args := range []string{"x;rm", "list $(id)", "a|b", "hook", "hook list", strings.Repeat("a", 33)} {
+// Invalid tokens and failing cid runs pass through so the skill (and the
+// model) can explain the error.
+func TestHookPassesThroughInvalidTokensAndFailures(t *testing.T) {
+	for _, args := range []string{"x;rm", "list $(id)", "a|b", "hook", "hook list", strings.Repeat("a", 33), "bogus", "remove", "version extra"} {
 		r := newRig(t)
-		got := r.block(expansion("account", args))
-		if !strings.Contains(got.Reason, r.msg(i18n.HookInvalidArgs)) || !strings.Contains(got.Reason, r.msg(i18n.Usage)) {
-			t.Errorf("%q: reason = %q", args, got.Reason)
+		code, out := r.hook(expansion("account", args))
+		if code != 0 || out != "" {
+			t.Errorf("%q: exit %d, stdout %q; want silent exit 0", args, code, out)
 		}
 	}
 }
