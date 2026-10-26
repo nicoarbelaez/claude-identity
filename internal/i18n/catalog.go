@@ -179,7 +179,7 @@ var catalogEN = map[Key]string{
   cid uninstall [--yes]     Remove all cid data (profiles, stored credentials, PATH entry)
   cid update                Update cid and the account-switch plugin to the latest release
   cid version               Show the version
-  cid help                 Show this help`,
+  cid help                  Show this help`,
 }
 
 var catalogES = map[Key]string{
@@ -275,7 +275,7 @@ var catalogES = map[Key]string{
   cid uninstall [--yes]     Elimina todos los datos de cid (perfiles, credenciales guardadas, entrada del PATH)
   cid update                Actualiza cid y el plugin account-switch a la última versión
   cid version               Muestra la versión
-  cid help                 Muestra esta ayuda`,
+  cid help                  Muestra esta ayuda`,
 }
 
 // T returns the message for key in lang, formatted with args. A key missing
