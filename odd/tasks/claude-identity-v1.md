@@ -42,7 +42,7 @@ Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitH
 | T8a | [x] done | Release automation (release-please + GoReleaser) and verified install scripts | R10 R11 | delegated direct + independent verifier | #4 |
 | T3 | [x] done | Swap engine: Windows/Linux file + macOS Keychain adapter | R1 R8 | delegated direct | 307f70b (#7) |
 | T4 | [x] done | CLI commands | R4 | delegated direct (writer trigger: 2+ non-trivial files) | 1ee6c3a, 07665a2, 5664549, e1cd9f5, 93f816a |
-| T5 | [ ] | Plugin `/account` commands | R4 R10 | delegated direct | - |
+| T5 | [x] done | Plugin `/account` commands | R4 R10 | delegated direct (writer trigger: plugin + docs) | 9dc782c, 5458ada. `cid setup` deferred pending a live check of bare `/account` |
 | T6 | [ ] | Expiry detection + guided relogin and recapture | R5 | delegated direct | - |
 | T7 | [x] done | i18n en/es | R9 | delegated direct | #6 |
 | T8 | [ ] | Install script + first signed release | R10 R11 | delegated direct | - |
