@@ -65,9 +65,12 @@ type Deps struct {
 	Settings SettingsPort
 	// Uninstall holds the collaborators of `cid uninstall`.
 	Uninstall UninstallDeps
-	Stdin     io.Reader // read only by the internal `hook` command
-	Stdout    io.Writer
-	Stderr    io.Writer
+	// Update holds the collaborators of `cid update` and of the release check
+	// in `cid version`; a nil Updater disables both.
+	Update UpdateDeps
+	Stdin  io.Reader // read only by the internal `hook` command
+	Stdout io.Writer
+	Stderr io.Writer
 	// Login runs Claude Code's login in an isolated config dir (cid add/relogin).
 	Login login.Runner
 	// RemoveAll deletes the temporary login directory; nil means os.RemoveAll.
@@ -104,6 +107,8 @@ func Run(d Deps, args []string) int {
 		return a.config(rest)
 	case "uninstall":
 		return a.uninstall(rest)
+	case "update":
+		return a.update(rest)
 	case "version":
 		return a.version(rest)
 	case "hook": // internal: plugin UserPromptExpansion hook, not in the usage text
@@ -353,6 +358,7 @@ func (a *app) version(args []string) int {
 		return a.usageError("")
 	}
 	a.printf(a.Stdout, "%s\n", a.t(i18n.VersionLine, version.String()))
+	a.announceUpdate()
 	return exitOK
 }
 

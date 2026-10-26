@@ -16,6 +16,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/settings"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
+	"github.com/nicoarbelaez/claude-identity/internal/update"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -89,6 +90,10 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 	store := profile.NewStore(profilesPath).WithNotifier(notify)
 	lock := filepath.Join(filepath.Dir(profilesPath), "cid.lock")
 	kv := vault.NewKeyringVault()
+	var updater update.Updater // nil turns off only the update check and cid update
+	if gh, err := update.NewGitHubUpdater(); err == nil {
+		updater = gh
+	}
 	exe, _ := os.Executable() // empty on failure: uninstall then skips the binary-specific steps
 	return cli.Deps{
 		Profiles: store,
@@ -109,6 +114,10 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 			LockPath:   lock,
 			Executable: exe,
 			GOOS:       runtime.GOOS,
+		},
+		Update: cli.UpdateDeps{
+			Updater: updater,
+			Plugin:  update.PluginRefresher{Runner: update.ExecRunner{}},
 		},
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,

@@ -91,9 +91,9 @@ func hookLogin(r login.Runner) login.Runner {
 }
 
 func validHookArgs(args []string) bool {
-	if len(args) > 0 { // no recursion, and uninstall is terminal-only
+	if len(args) > 0 { // no recursion; uninstall and update are terminal-only
 		switch strings.ToLower(args[0]) {
-		case "hook", "uninstall":
+		case "hook", "uninstall", "update":
 			return false
 		}
 	}

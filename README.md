@@ -83,6 +83,20 @@ Then restart Claude Code so it picks up `cid` on your `PATH`. Plugin commands ar
 
 To try the plugin from a local checkout without installing, run `claude --plugin-dir ./plugin`.
 
+## Updating
+
+```sh
+cid update
+```
+
+One command updates both parts. It downloads the latest release from GitHub, checks it against the release `checksums.txt`, replaces the `cid` binary, then runs `claude plugin marketplace update nicoarbelaez-tools` and `claude plugin update account-switch@nicoarbelaez-tools`. Restart Claude Code or run `/reload-plugins` to load the new plugin.
+
+- `cid version` prints the version and, when a newer release exists, one extra line pointing to `cid update`. It checks only when you run it, with a 3-second timeout, and prints nothing extra if you are offline or the check fails.
+- If the checksum does not match or the download fails, `cid update` exits `1` and leaves the binary unchanged.
+- The plugin step needs `claude` on your `PATH`. If it fails, `cid update` prints one warning and its exit code still reflects only the binary update.
+- The marketplace must have been added from GitHub (`/plugin marketplace add nicoarbelaez/claude-identity`), not from a local directory; a local marketplace has nothing to fetch.
+- Development builds cannot be updated. `cid update` is not available through the plugin hook; run it in a terminal.
+
 ## Uninstall
 
 ```sh
@@ -153,7 +167,8 @@ Inside Claude Code, `/account add` and `/account relogin` run the same login fro
 | `cid config get <key> [--json]` | Print one setting value. Exit `2` for an unknown key. |
 | `cid config set <key> <value>` | Validate and save a setting in `config.json`. Exit `2` for an unknown key or an invalid value. |
 | `cid config unset <key>` | Remove a setting from `config.json` so its default applies again. |
-| `cid version` | Show the version. |
+| `cid update` | Update the `cid` binary (checksum verified) and the `account-switch` plugin to the latest release. See [Updating](#updating). |
+| `cid version` | Show the version, and a note when a newer release exists. |
 
 The text output of `cid list` and `cid current` is meant for people and may change between versions; scripts should use `--json`. `--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). Exit codes: `0` success, `1` runtime error, `2` usage error.
 
