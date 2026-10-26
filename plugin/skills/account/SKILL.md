@@ -8,6 +8,8 @@ model: haiku
 effort: low
 ---
 
+The instant path for `/account` is the plugin's `UserPromptExpansion` hook (`cid hook`), which answers without a model turn. This body runs only as a fallback, when `cid hook` could not start.
+
 Output of `cid $ARGUMENTS`:
 
 !`cid $ARGUMENTS 2>&1 || true`
