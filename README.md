@@ -65,7 +65,23 @@ Or add the marketplace first, then install:
 /plugin install account-switch@nicoarbelaez-tools
 ```
 
-Plugin commands are namespaced as `/account-switch:account`.
+The plugin needs the `cid` binary on your `PATH` (see [CLI binary](#cli-binary)). To try it from a local checkout without installing, run `claude --plugin-dir ./plugin`.
+
+#### Using the plugin
+
+The plugin provides one skill, `account`, that forwards its arguments to `cid` and prints the result. Plugin skills are namespaced, so the full name is `/account-switch:account`. The bare `/account` also works as long as no other command uses that name.
+
+```
+/account              list profiles
+/account 2            switch to the second profile
+/account isa          switch to the profile named isa
+/account add isa      save the current login as "isa"
+/account config       show paths, backend and language
+```
+
+`list`, `remove`, `current` and `version` are forwarded too. Claude never runs these on its own (`disable-model-invocation: true`); you must type them.
+
+Security: `$ARGUMENTS` is inserted literally into a shell command (`cid $ARGUMENTS`). Because only you can invoke the skill, only the typing user can inject anything, and `cid` validates profile names against `^[a-z0-9][a-z0-9._-]{0,31}$`. Do not paste untrusted text after `/account`.
 
 ## Usage
 
