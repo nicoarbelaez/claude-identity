@@ -67,6 +67,22 @@ Or add the marketplace first, then install:
 
 Plugin commands are namespaced as `/account-switch:account`.
 
+## Usage
+
+Log in to Claude Code with the account you want to save, then:
+
+| Command | What it does |
+|---------|--------------|
+| `cid` / `cid list [--json]` | List profiles (index, name, email); the active one is marked with `*`. |
+| `cid <n\|name>` / `cid switch <n\|name>` | Hot-swap to a profile. Remote Control sessions disconnect after a swap. |
+| `cid add <name>` | Save the current Claude Code login as a profile and mark it active. Re-run it to refresh a profile. |
+| `cid remove <n\|name>` | Remove a profile and its keyring entry. The active profile cannot be removed. |
+| `cid current [--json]` | Show the active profile. |
+| `cid config` | Show the profiles file, the Claude config directory, the credential backend and the language. |
+| `cid version` | Show the version. |
+
+`--json` prints stable objects with `index`, `name`, `email` and `active` (never tokens). Exit codes: `0` success, `1` runtime error, `2` usage error.
+
 ## Language
 
 `cid` speaks English and Spanish. The language is picked in this order, and the first match wins:
