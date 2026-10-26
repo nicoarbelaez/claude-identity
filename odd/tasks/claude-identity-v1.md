@@ -1,0 +1,65 @@
+# claude-identity-v1
+
+## Objective
+Ship `claude-identity` (CLI `cid` plus Claude Code plugin) so users can hot-swap Anthropic accounts inside one running Claude Code session without losing context.
+
+## Problem
+Claude Code holds one logged-in account. Switching requires logout/login and often a new session, losing context.
+
+## Why
+Users with personal and work (or several paid) accounts need fast, safe switching. A single `~/.claude` plus an OS-keyring vault keeps history, settings and sessions shared.
+
+## Scope
+In: profile store, keyring vault, swap engine, CLI, `/account` plugin commands, expiry guidance, i18n (en/es), releases, repo security.
+Out: calling Anthropic OAuth endpoints, token refresh by us, plaintext token storage.
+
+## Constraints
+Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitHub plan; no secrets in repo; never send tokens anywhere.
+
+## Requirements
+- R1 Hot swap in a single `~/.claude`, no context loss.
+- R2 Spike: verify a running session re-reads credentials changed by another process (first task, blocks design).
+- R3 Last active account persists naturally.
+- R4 Commands `/account`, `/account <n|name>`, `/account config`, `/account add <name>`, short alias, CLI `cid`.
+- R5 Expiry: Claude Code refreshes; on failure guided `/login` plus automatic recapture.
+- R6 OS keyring vault, no plaintext.
+- R7 Go.
+- R8 Windows + macOS + Linux.
+- R9 i18n en/es (Claude Code settings, fallback OS locale).
+- R10 Plugin marketplace plus signed GitHub Releases binary; install script or `go install`.
+- R11 Free GitHub Actions CI/CD with TDD, 3-OS tests, lint, GoReleaser.
+- R12 Strict repo security on free plan: ruleset (PR required, CODEOWNERS approval, green CI, signed commits, no force-push/delete); CodeQL; Dependabot; secret scanning + push protection; SHA-pinned actions; least-privilege GITHUB_TOKEN; manual approval for fork workflows.
+- R13 Public repo `claude-identity`, English, MIT.
+
+## Checklist
+| ID | Status | Task | Reqs | Route | Commit |
+|----|--------|------|------|-------|--------|
+| T0 | [~] in progress | Scaffold, CI, release pipeline, plugin skeleton, repo security | R7 R10 R11 R12 R13 | delegated direct (2+ non-trivial files) | pending |
+| T1 | [ ] | Spike: does a running session re-read externally changed credentials? Blocks design | R2 | inline (experiment) | - |
+| T2 | [ ] | Profile store + keyring vault (TDD) | R3 R6 | delegated direct | - |
+| T3 | [ ] | Swap engine: Windows/Linux file + macOS Keychain adapter | R1 R8 | delegated direct | - |
+| T4 | [ ] | CLI commands | R4 | delegated direct | - |
+| T5 | [ ] | Plugin `/account` commands | R4 R10 | delegated direct | - |
+| T6 | [ ] | Expiry detection + guided relogin and recapture | R5 | delegated direct | - |
+| T7 | [ ] | i18n en/es | R9 | delegated direct | - |
+| T8 | [ ] | Install script + first signed release | R10 R11 | delegated direct | - |
+
+T0 remaining (parent): create GitHub repo, push, apply ruleset, enable secret scanning/push protection, fork-workflow approval, decide commit signing.
+
+## Acceptance criteria
+- T1 result documented and design adjusted before T2 starts.
+- Switching accounts mid-session keeps context and uses the new account on the next request.
+- No token ever written in plaintext outside Claude Code's own credential store.
+- CI green on 3 OSes; release produces attested binaries for 6 targets.
+
+## Checks
+`go build ./...`, `go vet ./...`, `go test -race ./...`, `gofmt -l .`, golangci-lint, CodeQL, JSON/YAML validity. TDD: RED before GREEN wherever a runnable deterministic test exists.
+
+## Delivery strategy
+`ask-on-risk`. Forecast is under about 400 authored lines per slice, except the T0 scaffold, which is larger because of boilerplate and docs.
+
+## Progress
+- T0: files scaffolded locally; first commit pending parent push and repo configuration.
+
+## Next step
+Parent creates the GitHub repo and applies security settings, then start T1.

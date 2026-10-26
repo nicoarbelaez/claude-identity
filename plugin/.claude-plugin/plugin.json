@@ -1,0 +1,13 @@
+{
+  "name": "claude-identity",
+  "version": "0.0.0",
+  "description": "Hot-swap between multiple Anthropic accounts inside a running Claude Code session via /account commands backed by the cid CLI.",
+  "author": {
+    "name": "nicoarbelaez",
+    "url": "https://github.com/nicoarbelaez"
+  },
+  "homepage": "https://github.com/nicoarbelaez/claude-identity",
+  "repository": "https://github.com/nicoarbelaez/claude-identity",
+  "license": "MIT",
+  "keywords": ["accounts", "identity", "switch", "auth"]
+}

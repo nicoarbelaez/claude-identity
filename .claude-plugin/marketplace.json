@@ -1,0 +1,14 @@
+{
+  "name": "claude-identity",
+  "owner": {
+    "name": "nicoarbelaez",
+    "url": "https://github.com/nicoarbelaez"
+  },
+  "plugins": [
+    {
+      "name": "claude-identity",
+      "source": "./plugin",
+      "description": "Hot-swap between multiple Anthropic accounts inside a running Claude Code session."
+    }
+  ]
+}
