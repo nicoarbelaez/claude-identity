@@ -81,7 +81,13 @@ The plugin provides one skill, `account`, that forwards its arguments to `cid` a
 
 `list`, `remove`, `current` and `version` are forwarded too. Claude never runs these on its own (`disable-model-invocation: true`); you must type them.
 
-Security: `$ARGUMENTS` is inserted literally into a shell command (`cid $ARGUMENTS`). Because only you can invoke the skill, only the typing user can inject anything, and `cid` validates profile names against `^[a-z0-9][a-z0-9._-]{0,31}$`. Do not paste untrusted text after `/account`.
+#### Instant responses
+
+The plugin registers a `UserPromptExpansion` hook that runs `cid hook` (no shell) whenever you type `/account`. The hook runs `cid` in-process and shows its exact output to you, without a model turn, so the answer is immediate and costs no tokens. Arguments are limited to profile names or numbers and `--json`; anything else is rejected with a usage message.
+
+This requires `cid` on your `PATH` and Claude Code 2.1.275 or later. If the hook cannot start (for example `cid` is not on `PATH`), the prompt proceeds and the `account` skill runs `cid $ARGUMENTS` through a small model turn instead.
+
+Security: only the skill fallback inserts `$ARGUMENTS` literally into a shell command (`cid $ARGUMENTS`). Because only you can invoke the skill, only the typing user can inject anything, and `cid` validates profile names against `^[a-z0-9][a-z0-9._-]{0,31}$`. Do not paste untrusted text after `/account`.
 
 ## Usage
 
