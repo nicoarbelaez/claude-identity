@@ -3,15 +3,19 @@ name: account
 description: Switch, list, add or remove Claude Code accounts through the cid CLI.
 argument-hint: "[n|name] | list | add <name> | remove <n|name> | current | config | version"
 disable-model-invocation: true
-allowed-tools: Bash(cid) Bash(cid *)
+allowed-tools: Bash(cid help)
 model: haiku
 effort: low
 ---
 
-The instant path for `/account` is the plugin's `UserPromptExpansion` hook (`cid hook`), which answers successful commands without a model turn. This body runs only when `cid hook` could not start or `cid` failed.
+The `account-switch` plugin answers `/account` through its `UserPromptExpansion` hook (`cid hook`), which runs `cid` itself and shows the result without a model turn. This body only runs when the hook could not answer. It never runs the user's command.
 
-Output of `cid $ARGUMENTS`:
+You typed: /account $ARGUMENTS
 
-!`cid $ARGUMENTS 2>&1 || true`
+Help text of `cid`:
 
-Show the output above verbatim. If it contains a Remote Control warning, keep it. If it is an error, add one or two sentences on how to fix the command, based on the usage text. If it is empty or says "command not found", tell the user in one sentence to install `cid` with the install command from the project README (https://github.com/nicoarbelaez/claude-identity#installation). Do not run any tool.
+!`cid help 2>&1 || true`
+
+- If the hook context says `cid` failed, explain the error and how to fix the command in one or two sentences, using the help text above.
+- If the help text above is empty or says "command not found", tell the user in one sentence to install `cid` following the Installation section of https://github.com/nicoarbelaez/claude-identity#installation.
+- Never run `cid` or any other tool.

@@ -69,7 +69,7 @@ The plugin needs the `cid` binary on your `PATH` (see [CLI binary](#cli-binary))
 
 #### Using the plugin
 
-The plugin provides one skill, `account`, that forwards its arguments to `cid` and prints the result. Plugin skills are namespaced, so the full name is `/account-switch:account`. The bare `/account` also works as long as no other command uses that name.
+The plugin provides one skill, `account`, whose command is answered by a hook that runs `cid` (see [Instant responses](#instant-responses)). Plugin skills are namespaced, so the full name is `/account-switch:account`. The bare `/account` also works as long as no other command uses that name.
 
 ```
 /account              list profiles
@@ -85,9 +85,9 @@ The plugin provides one skill, `account`, that forwards its arguments to `cid` a
 
 The plugin registers a `UserPromptExpansion` hook that runs `cid hook` (no shell) whenever you type `/account`. The hook runs `cid` in-process and shows its exact output to you, without a model turn, so the answer is immediate and costs no tokens. It only answers when `cid` succeeds. Arguments are limited to profile names or numbers and `--json`.
 
-If `cid` fails (unknown command or profile, bad arguments, runtime error), the arguments are not valid, or the hook cannot start (for example `cid` is not on `PATH`), the prompt proceeds and the `account` skill runs `cid $ARGUMENTS` through a small model turn. The model then shows the error and briefly explains how to fix the command, or tells you to install `cid`. This requires Claude Code 2.1.275 or later.
+If `cid` fails (unknown command or profile, bad arguments, runtime error) or the arguments are not valid, the hook does not block the prompt. It passes the error to the model as context, together with a note that `cid` already ran, and the `account` skill explains how to fix the command. `cid` runs exactly once. If the hook cannot start (for example `cid` is not on `PATH`), the skill tells you to install `cid`. This requires Claude Code 2.1.275 or later.
 
-Security: the hook never uses a shell and ignores invalid tokens. Only the skill fallback inserts `$ARGUMENTS` literally into a shell command (`cid $ARGUMENTS`). Because only you can invoke the skill, only the typing user can inject anything, and `cid` validates profile names against `^[a-z0-9][a-z0-9._-]{0,31}$`. Do not paste untrusted text after `/account`.
+Security: arguments never reach a shell. The hook runs `cid` directly (exec form, no shell) and rejects any token that is not a profile name or number, or `--json`. The skill body never runs your command; its only shell line is the fixed `cid help`.
 
 ## Usage
 
