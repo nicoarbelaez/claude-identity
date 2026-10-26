@@ -54,6 +54,7 @@ type Deps struct {
 	Swap     Swapper
 	Lang     i18n.Lang
 	Config   Config
+	Stdin    io.Reader // read only by the internal `hook` command
 	Stdout   io.Writer
 	Stderr   io.Writer
 }
@@ -81,6 +82,8 @@ func Run(d Deps, args []string) int {
 		return a.config(rest)
 	case "version":
 		return a.version(rest)
+	case "hook": // internal: plugin UserPromptExpansion hook, not in the usage text
+		return a.hook()
 	case "help", "-h", "--help":
 		a.printf(a.Stdout, "%s\n", a.t(i18n.Usage))
 		return exitOK

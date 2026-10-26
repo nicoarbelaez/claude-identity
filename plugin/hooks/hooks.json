@@ -1,0 +1,18 @@
+{
+  "description": "Answer /account instantly with the cid output, without a model turn.",
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "(^|:)account$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cid",
+            "args": ["hook"],
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

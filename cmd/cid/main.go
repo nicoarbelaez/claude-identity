@@ -57,6 +57,7 @@ func wire(lang i18n.Lang) (cli.Deps, error) {
 			ClaudeDir:    filepath.Dir(paths.Credentials),
 			Keychain:     keychain,
 		},
+		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}, nil

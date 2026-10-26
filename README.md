@@ -65,7 +65,29 @@ Or add the marketplace first, then install:
 /plugin install account-switch@nicoarbelaez-tools
 ```
 
-Plugin commands are namespaced as `/account-switch:account`.
+The plugin needs the `cid` binary on your `PATH` (see [CLI binary](#cli-binary)). To try it from a local checkout without installing, run `claude --plugin-dir ./plugin`.
+
+#### Using the plugin
+
+The plugin provides one skill, `account`, whose command is answered by a hook that runs `cid` (see [Instant responses](#instant-responses)). Plugin skills are namespaced, so the full name is `/account-switch:account`. The bare `/account` also works as long as no other command uses that name.
+
+```
+/account              list profiles
+/account 2            switch to the second profile
+/account isa          switch to the profile named isa
+/account add isa      save the current login as "isa"
+/account config       show paths, backend and language
+```
+
+`list`, `remove`, `current` and `version` are forwarded too. Claude never runs these on its own (`disable-model-invocation: true`); you must type them.
+
+#### Instant responses
+
+The plugin registers a `UserPromptExpansion` hook that runs `cid hook` (no shell) whenever you type `/account`. The hook runs `cid` in-process and shows its exact output to you, without a model turn, so the answer is immediate and costs no tokens. It only answers when `cid` succeeds. Arguments are limited to profile names or numbers and `--json`.
+
+If `cid` fails (unknown command or profile, bad arguments, runtime error) or the arguments are not valid, the hook does not block the prompt. It passes the error to the model as context, together with a note that `cid` already ran, and the `account` skill explains how to fix the command. `cid` runs exactly once. If the hook cannot start (for example `cid` is not on `PATH`), the skill tells you to install `cid`. This requires Claude Code 2.1.275 or later.
+
+Security: arguments never reach a shell. The hook runs `cid` directly (exec form, no shell) and rejects any token that is not a profile name or number, or `--json`. The skill body never runs your command; its only shell line is the fixed `cid help`.
 
 ## Usage
 
