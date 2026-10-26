@@ -406,12 +406,8 @@ func writeAtomic(path string, data []byte) error {
 	}
 	tmp := f.Name()
 	cleanup := func() { _ = os.Remove(tmp) }
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		cleanup()
-		return err
-	}
-	if err := f.Close(); err != nil {
+	_, werr := f.Write(data)
+	if err := errors.Join(werr, f.Close()); err != nil {
 		cleanup()
 		return err
 	}
