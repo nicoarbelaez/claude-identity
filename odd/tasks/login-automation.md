@@ -17,7 +17,7 @@ Out: implementing OAuth, calling Anthropic endpoints, token refresh by us, macOS
 - Run `claude auth login [--console] [--sso] [--email <email>]` with `CLAUDE_CONFIG_DIR=<private temp dir>`, terminal attached, then read the credentials from that dir with the existing file store.
 - Temp dir is created 0700 and always removed (defer, also on error and interrupt).
 - Never read or print token values; tests never touch real `~/.claude` or the OS keyring.
-- Hook (`cid hook`) has no terminal and a 20s timeout: it must never start a login.
+- Hook (`cid hook`) runs the login itself (L7): empty stdin, child output discarded (the hook stdout carries the JSON), 660 s timeout. No response shows "steps to follow" lists.
 - Go; Windows, macOS, Linux; English code, comments, docs; neutral Spanish for ES strings.
 
 ## Spike results (user run, Windows 11, Claude Code 2.1.310)
@@ -35,6 +35,7 @@ Out: implementing OAuth, calling Anthropic endpoints, token refresh by us, macOS
 | L4 | [x] | Hook guidance: block `add` (without `--current`) and `relogin`, keep `add --current` | bounded writer | 75d920d |
 | L5 | [x] | Docs: README Usage table + "Adding accounts", help text en/es, SKILL.md if needed | bounded writer | a1b7030 |
 | L6 | [x] | Review hardening: Relogin refuses profiles without email and duplicate accounts; active relogin writes and verifies live first (restores on failure), then the vault; temp-dir removal warning; login error text and wiring error; 10 minute login deadline; ExecRunner tests with a helper process | bounded writer | 773bfbf, eb85699, d464462 |
+| L7 | [x] | Hook runs login, no step texts: `cid hook` runs add/relogin in process (login child gets empty stdin and discarded output so the hook JSON stays valid), hook timeout 660 s, failures become additionalContext without blocking, SKILL.md lets the assistant retry on explicit request, multi-step catalog texts replaced by one-line causes | bounded writer | 96721fc, 04239fd |
 
 ## Acceptance criteria
 - `cid add <name>` saves the freshly logged-in account as a profile without changing the live login or the active profile.
@@ -42,8 +43,8 @@ Out: implementing OAuth, calling Anthropic endpoints, token refresh by us, macOS
 - `cid add <name> --current` behaves exactly as before.
 - `cid relogin` refuses to save when the logged-in email differs from the profile email; overwrites stored credentials; refreshes the live store only when the profile is active.
 - Temp dir removed in every outcome.
-- Missing `claude`, failed login, empty temp dir or darwin: localized message, manual fallback steps, exit 1.
-- `cid hook` never starts a login; `add --current` still works from the hook.
+- Missing `claude`, failed login, empty temp dir or darwin: localized one-line cause plus at most one short sentence, exit 1.
+- `cid hook` runs add/relogin and blocks with the result; on failure it passes additionalContext (no block, no step lists); `add --current` still works from the hook.
 
 ## Checks
 `go build ./...` (also GOOS=linux and GOOS=darwin), `go vet ./...`, `go test ./...`, `gofmt -l .`, golangci-lint. TDD: RED (compile or assertion failure) before GREEN for every task.
@@ -56,4 +57,6 @@ Out: implementing OAuth, calling Anthropic endpoints, token refresh by us, macOS
 - S1 and S2 confirmed by the user spike; S3 (macOS) still open.
 
 ## Next step
-User runs a real `cid add` and `cid relogin` on Windows. Then consider letting the hook start the login directly (S2 allows it; needs a longer hook timeout). macOS support waits on S3.
+User runs a real `/account add` and `/account relogin` inside Claude Code on Windows. macOS support waits on S3.
+
+L7 decision: in hook mode the login child gets an empty stdin and Stdout/Stderr = io.Discard (not the hook's stderr), injected through the optional `login.Streamer` interface on the Runner plus `Deps.Quiet` to skip the progress line. A runner that cannot be redirected is dropped so the login fails safely.
