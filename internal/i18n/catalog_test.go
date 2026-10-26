@@ -3,6 +3,7 @@ package i18n
 import (
 	"regexp"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -38,6 +39,17 @@ func TestCatalogParity(t *testing.T) {
 		}
 		if a, b := len(verbs(enMsg)), len(verbs(catalogES[k])); a != b {
 			t.Errorf("key %q verb count differs: en=%d es=%d", k, a, b)
+		}
+	}
+}
+
+func TestUsageMentionsEveryCommand(t *testing.T) {
+	for _, lang := range []Lang{EN, ES} {
+		usage := T(lang, Usage)
+		for _, cmd := range []string{"cid list", "cid switch", "cid add", "cid remove", "cid current", "cid config", "cid version", "cid help", "--json"} {
+			if !strings.Contains(usage, cmd) {
+				t.Errorf("%s usage does not mention %q", lang, cmd)
+			}
 		}
 	}
 }

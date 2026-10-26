@@ -39,13 +39,14 @@ Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitH
 | T0.1 | [x] done | Rename plugin/marketplace to pass `claude plugin validate` | R14 | inline (mechanical) | 75b96f2 (#1) |
 | T1 | [x] done | Spike: does a running session re-read externally changed credentials? Blocks design | R2 | delegated direct (kit) + user-run experiment | 200dbf5 (#2), results in this PR |
 | T2 | [x] done | Profile store + keyring vault (TDD) | R3 R6 | delegated direct | d34ae6a (#3) |
-| T8a | [~] in review | Release automation (release-please + GoReleaser) and verified install scripts | R10 R11 | delegated direct + independent verifier | PR #4 |
-| T3 | [ ] | Swap engine: Windows/Linux file + macOS Keychain adapter | R1 R8 | delegated direct | - |
-| T4 | [ ] | CLI commands | R4 | delegated direct | - |
+| T8a | [x] done | Release automation (release-please + GoReleaser) and verified install scripts | R10 R11 | delegated direct + independent verifier | #4 |
+| T3 | [x] done | Swap engine: Windows/Linux file + macOS Keychain adapter | R1 R8 | delegated direct | 307f70b (#7) |
+| T4 | [x] done | CLI commands | R4 | delegated direct (writer trigger: 2+ non-trivial files) | 1ee6c3a, 07665a2, 5664549, e1cd9f5, 93f816a |
 | T5 | [ ] | Plugin `/account` commands | R4 R10 | delegated direct | - |
 | T6 | [ ] | Expiry detection + guided relogin and recapture | R5 | delegated direct | - |
-| T7 | [ ] | i18n en/es | R9 | delegated direct | - |
+| T7 | [x] done | i18n en/es | R9 | delegated direct | #6 |
 | T8 | [ ] | Install script + first signed release | R10 R11 | delegated direct | - |
+| T8b | [x] done | release-please initial-version 0.1.0 | R10 | inline (mechanical) | 609339a (#10) |
 
 T0 closed: repo public, CI (3 OS + lint) and CodeQL green, ruleset `protect-main` active, secret scanning + push protection, Dependabot, private vulnerability reporting, fork-workflow approval, SSH commit signing.
 

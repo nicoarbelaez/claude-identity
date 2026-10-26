@@ -258,3 +258,101 @@ func (l loggedOut) Write(b credentials.Bundle) error {
 type dropWrites struct{ claudecfg.Store }
 
 func (dropWrites) Write(credentials.Bundle) error { return nil }
+
+func TestAddCapturesLiveLoginAndMarksItActive(t *testing.T) {
+	e := twoAccounts(t) // b is live and active
+	e.login(t, bundle("c@example.com", "tok-c1", 3000))
+	p, err := e.svc.Add("c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != "c" || p.Email != "c@example.com" {
+		t.Fatalf("profile = %+v", p)
+	}
+	if act, err := e.prof.Active(); err != nil || act.Name != "c" {
+		t.Fatalf("active = %+v, %v", act, err)
+	}
+	if e.stored(t, "c").ExpiresAt() != 3000 {
+		t.Error("vault bundle mismatch")
+	}
+}
+
+func TestAddInvalidNameDoesNotChangeActive(t *testing.T) {
+	e := twoAccounts(t)
+	if _, err := e.svc.Add("Bad Name"); !errors.Is(err, profile.ErrInvalidName) {
+		t.Fatalf("want ErrInvalidName, got %v", err)
+	}
+	if act, _ := e.prof.Active(); act.Name != "b" {
+		t.Fatalf("active = %q, want b", act.Name)
+	}
+}
+
+func TestAddWithoutLiveLogin(t *testing.T) {
+	e := newEnv(t)
+	if _, err := e.svc.Add("a"); !errors.Is(err, claudecfg.ErrNoCredentials) {
+		t.Fatalf("want ErrNoCredentials, got %v", err)
+	}
+}
+
+func TestRemoveDeletesProfileAndSecret(t *testing.T) {
+	for _, arg := range []string{"a", "1"} {
+		t.Run(arg, func(t *testing.T) {
+			e := twoAccounts(t) // b active
+			p, err := e.svc.Remove(arg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.Name != "a" {
+				t.Fatalf("removed = %+v", p)
+			}
+			if _, err := e.prof.Resolve("a"); !errors.Is(err, profile.ErrNotFound) {
+				t.Errorf("profile still present: %v", err)
+			}
+			if _, err := e.vault.Get("a"); !errors.Is(err, vault.ErrNotFound) {
+				t.Errorf("secret still present: %v", err)
+			}
+		})
+	}
+}
+
+func TestRemoveRefusesActiveProfile(t *testing.T) {
+	e := twoAccounts(t)
+	if _, err := e.svc.Remove("b"); !errors.Is(err, ErrRemoveActive) {
+		t.Fatalf("want ErrRemoveActive, got %v", err)
+	}
+	if _, err := e.prof.Resolve("b"); err != nil {
+		t.Errorf("active profile was removed: %v", err)
+	}
+	if _, err := e.vault.Get("b"); err != nil {
+		t.Errorf("active secret was removed: %v", err)
+	}
+}
+
+func TestRemoveUnknownProfileAndMissingSecret(t *testing.T) {
+	e := twoAccounts(t)
+	if _, err := e.svc.Remove("nope"); !errors.Is(err, profile.ErrNotFound) {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+	// A profile whose vault entry is already gone is still removable.
+	if err := e.vault.Delete("a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Remove("a"); err != nil {
+		t.Fatalf("remove with missing secret: %v", err)
+	}
+}
+
+func TestAddAndRemoveHonorLock(t *testing.T) {
+	e := twoAccounts(t)
+	other := flock.New(e.lock)
+	if err := other.Lock(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.Unlock() }()
+	if _, err := e.svc.Add("c"); !errors.Is(err, ErrLockTimeout) {
+		t.Fatalf("Add: want ErrLockTimeout, got %v", err)
+	}
+	if _, err := e.svc.Remove("a"); !errors.Is(err, ErrLockTimeout) {
+		t.Fatalf("Remove: want ErrLockTimeout, got %v", err)
+	}
+}

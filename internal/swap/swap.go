@@ -25,6 +25,8 @@ var (
 	// ErrUnknownLiveAccount means the live login matches no saved profile, so
 	// switching would discard its tokens.
 	ErrUnknownLiveAccount = errors.New("the current Claude Code login is not a saved profile; run `cid add <name>` first")
+	// ErrRemoveActive means the profile to remove is the active one.
+	ErrRemoveActive = errors.New("cannot remove the active profile")
 	// ErrVerify means the live store did not reflect the written profile.
 	ErrVerify = errors.New("swap verification failed: live credentials do not match the target profile")
 )
@@ -71,6 +73,43 @@ func (s *Service) WithLock(fn func() error) error {
 	}
 	defer func() { _ = l.Unlock() }()
 	return fn()
+}
+
+// Add captures the live login as profile name (see Capture) and marks it as
+// the active profile, since the captured login is by definition the live one.
+func (s *Service) Add(name string) (profile.Profile, error) {
+	var p profile.Profile
+	err := s.WithLock(func() error {
+		var err error
+		if p, err = s.capture(name); err != nil {
+			return err
+		}
+		return s.Profiles.SetActive(p.Name)
+	})
+	return p, err
+}
+
+// Remove deletes the profile identified by arg (index or name) together with
+// its vault entry. It refuses to remove the active profile.
+func (s *Service) Remove(arg string) (profile.Profile, error) {
+	var p profile.Profile
+	err := s.WithLock(func() error {
+		var err error
+		if p, err = s.Profiles.Resolve(arg); err != nil {
+			return err
+		}
+		if active, aerr := s.Profiles.Active(); aerr == nil && active.Name == p.Name {
+			return fmt.Errorf("%w: %s", ErrRemoveActive, p.Name)
+		}
+		if err := s.Profiles.Remove(p.Name); err != nil {
+			return err
+		}
+		if err := s.Vault.Delete(p.Name); err != nil && !errors.Is(err, vault.ErrNotFound) {
+			return err
+		}
+		return nil
+	})
+	return p, err
 }
 
 // Capture saves the live login as profile name, creating the profile if needed.
