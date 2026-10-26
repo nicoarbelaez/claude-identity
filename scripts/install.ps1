@@ -15,13 +15,36 @@ $ErrorActionPreference = 'Stop'
 $Repo = 'nicoarbelaez/claude-identity'
 $Bin = 'cid'
 
-# True when $Dir is an entry of the ';'-separated $PathList (case-insensitive, ignoring trailing '\').
+# True when $Dir is an entry of the ';'-separated $PathList (case-insensitive, ignoring trailing '\',
+# with %VAR% references expanded on both sides).
 function Test-PathContains([string]$PathList, [string]$Dir) {
-    $want = $Dir.Trim().TrimEnd('\')
+    $want = [Environment]::ExpandEnvironmentVariables($Dir).Trim().TrimEnd('\')
     foreach ($entry in ($PathList -split ';')) {
-        if ($entry.Trim().TrimEnd('\') -ieq $want) { return $true }
+        if ([Environment]::ExpandEnvironmentVariables($entry).Trim().TrimEnd('\') -ieq $want) { return $true }
     }
     return $false
+}
+
+# Append $Dir to the user PATH in HKCU, keeping %VAR% entries unexpanded. Returns $false if already present.
+function Add-ToUserPath([string]$Dir) {
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    try {
+        $raw = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if (Test-PathContains $raw $Dir) { return $false }
+        $new = if ($raw) { $raw.TrimEnd(';') + ';' + $Dir } else { $Dir }
+        $kind = [Microsoft.Win32.RegistryValueKind]::String
+        if ($raw -like '*%*') { $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString }
+        elseif ($key.GetValueNames() -contains 'Path') { $kind = $key.GetValueKind('Path') }
+        $key.SetValue('Path', $new, $kind)
+    }
+    finally { $key.Close() }
+    # Tell running programs (e.g. Explorer) that the environment changed.
+    if (-not ('CidNative.Env' -as [type])) {
+        Add-Type -Namespace CidNative -Name Env -MemberDefinition '[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
+    }
+    $res = [UIntPtr]::Zero
+    [void][CidNative.Env]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res)
+    return $true
 }
 
 switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -86,11 +109,14 @@ try {
         }
     }
     else {
-        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-        if (-not (Test-PathContains $userPath $Dest)) {
-            $newPath = if ($userPath) { $userPath.TrimEnd(';') + ';' + $Dest } else { $Dest }
-            [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
-            Write-Host "Added $Dest to your user PATH. Restart open terminals (and Claude Code) to pick it up."
+        try {
+            if (Add-ToUserPath $Dest) {
+                Write-Host "Added $Dest to your user PATH. Restart open terminals (and Claude Code) to pick it up."
+            }
+        }
+        catch {
+            Write-Warning "Could not update your PATH: $($_.Exception.Message)"
+            Write-Host "Add $Dest to your PATH manually to run '$Bin' from anywhere."
         }
         if (-not (Test-PathContains $env:Path $Dest)) { $env:Path = $env:Path.TrimEnd(';') + ';' + $Dest }
     }
