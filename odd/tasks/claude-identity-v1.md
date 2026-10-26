@@ -43,9 +43,9 @@ Go; Windows, macOS, Linux; MIT; public English repo `claude-identity`; free GitH
 | T3 | [x] done | Swap engine: Windows/Linux file + macOS Keychain adapter | R1 R8 | delegated direct | 307f70b (#7) |
 | T4 | [x] done | CLI commands | R4 | delegated direct (writer trigger: 2+ non-trivial files) | 1ee6c3a, 07665a2, 5664549, e1cd9f5, 93f816a |
 | T5 | [x] done | Plugin `/account` commands | R4 R10 | delegated direct (writer trigger: plugin + docs) | 9dc782c, 5458ada. `cid setup` deferred pending a live check of bare `/account`. Instant path: `UserPromptExpansion` hook running `cid hook` (b98e1c2, b4a8f81, 374e124), skill kept as read-only fallback |
-| T6 | [x] done (minimal) | Local token status in `cid list`/`current` (`--json` `status`) and `cid relogin` guidance. Menu and usage-quota features deferred to post-v1 | R5 | delegated direct | PR #19 (feat/token-status) |
+| T6 | [x] done (minimal) | Local token status in `cid list`/`current` (`--json` `status`) and `cid relogin` guidance. Menu and usage-quota features deferred to post-v1 | R5 | delegated direct | 3b01f81 (#19) |
 | T7 | [x] done | i18n en/es | R9 | delegated direct | #6 |
-| T8 | [ ] | Install script + first signed release | R10 R11 | delegated direct | - |
+| T8 | [~] in progress | Install script + first signed release | R10 R11 | delegated direct | v0.1.0, v0.2.0 released; installer PATH 1efb652 (#18), broadcast fix #20; v0.3.0 pending |
 | T8b | [x] done | release-please initial-version 0.1.0 | R10 | inline (mechanical) | 609339a (#10) |
 
 T0 closed: repo public, CI (3 OS + lint) and CodeQL green, ruleset `protect-main` active, secret scanning + push protection, Dependabot, private vulnerability reporting, fork-workflow approval, SSH commit signing.
@@ -67,7 +67,7 @@ T0 closed: repo public, CI (3 OS + lint) and CodeQL green, ruleset `protect-main
 - T0.1: `claude plugin validate .` rejected the `claude-identity` plugin name as reserved; renamed.
 - T1: done. User-run experiment on Claude Code 2.1.310 / Windows 11 (see `docs/spikes/r2-hot-swap.md`): a running session picked up swapped credentials on the next request with the same Session ID and no context loss, and did not write the old account back while open or on exit. R1 hot swap confirmed as the primary design; `claude --continue` relaunch stays only as a documented fallback. Untested: token-refresh race, macOS Keychain.
 - T2: done. `internal/profile`, `internal/vault` (keyring with chunking for the 2560-byte Windows limit), `internal/credentials`. Open for T3: no cross-process lock on `profiles.json`.
-- T8a: PR #4 verified (goreleaser check, snapshot names match install scripts, actionlint, shellcheck, PowerShell parse 0 errors); awaiting merge decision.
+- T8a: PR #4 verified (goreleaser check, snapshot names match install scripts, actionlint, shellcheck, PowerShell parse 0 errors); merged.
 
 ## Next step
-T3 swap engine (key-level write-back check, file lock, Remote Control warning) and T7 i18n in parallel; then T4 CLI, T5 plugin commands, T6 expiry handling.
+Merge the v0.3.0 Release PR, verify its assets, then the user installs from scratch following the README and runs the live test (instant hook answers, error explanation with a single `cid` run, bare `/account`). Menu and account-switch shortcut wait until v1 is confirmed working.
