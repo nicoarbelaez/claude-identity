@@ -55,9 +55,11 @@ const (
 
 // Status classifies the bundle at time now. It only checks that a refresh
 // token is present, never its value or validity, so a stale stored copy can
-// still report ok.
+// still report ok. A payload with no access token, no refresh token and no
+// expiry (null, {} or all-empty fields) is unknown, not needs_login.
 func (b Bundle) Status(now time.Time) Status {
 	var o struct {
+		AccessToken  string `json:"accessToken"`
 		RefreshToken string `json:"refreshToken"`
 		ExpiresAt    int64  `json:"expiresAt"`
 	}
@@ -65,6 +67,8 @@ func (b Bundle) Status(now time.Time) Status {
 		return StatusUnknown
 	}
 	switch {
+	case o.AccessToken == "" && o.RefreshToken == "" && o.ExpiresAt == 0:
+		return StatusUnknown
 	case o.RefreshToken == "":
 		return StatusNeedsLogin
 	case o.ExpiresAt <= 0:
