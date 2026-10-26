@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+func TestBundleAccessors(t *testing.T) {
+	b := Bundle{
+		ClaudeAIOAuth: json.RawMessage(`{"accessToken":"a","expiresAt":1234}`),
+		OAuthAccount:  json.RawMessage(`{"emailAddress":"x@example.com"}`),
+	}
+	if got := b.Email(); got != "x@example.com" {
+		t.Errorf("Email() = %q", got)
+	}
+	if got := b.ExpiresAt(); got != 1234 {
+		t.Errorf("ExpiresAt() = %d", got)
+	}
+	var empty Bundle
+	if empty.Email() != "" || empty.ExpiresAt() != 0 {
+		t.Error("empty bundle should yield zero values")
+	}
+}
+
 func TestBundleRoundTrip(t *testing.T) {
 	in := Bundle{
 		ClaudeAIOAuth: json.RawMessage(`{"accessToken":"a","refreshToken":"r","expiresAt":1}`),

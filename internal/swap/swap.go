@@ -1,0 +1,228 @@
+// Package swap implements account capture and hot-swap on top of the profile
+// store, the secret vault, and the live Claude Code credential store.
+package swap
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/gofrs/flock"
+
+	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
+	"github.com/nicoarbelaez/claude-identity/internal/credentials"
+	"github.com/nicoarbelaez/claude-identity/internal/profile"
+	"github.com/nicoarbelaez/claude-identity/internal/vault"
+)
+
+var (
+	// ErrLockTimeout means another cid process held the lock too long.
+	ErrLockTimeout = errors.New("another cid operation is in progress (lock timeout)")
+	// ErrUnknownLiveAccount means the live login matches no saved profile, so
+	// switching would discard its tokens.
+	ErrUnknownLiveAccount = errors.New("the current Claude Code login is not a saved profile; run `cid add <name>` first")
+	// ErrVerify means the live store did not reflect the written profile.
+	ErrVerify = errors.New("swap verification failed: live credentials do not match the target profile")
+)
+
+// Result describes a completed Switch.
+type Result struct {
+	From, To profile.Profile
+	// NoOp is true when the target was already live; nothing was written.
+	NoOp bool
+	// RemoteControlWarning is true when a swap happened: Claude Code Remote
+	// Control sessions disconnect and must be reconnected.
+	RemoteControlWarning bool
+}
+
+// Service coordinates profiles, vault, and the live credential store.
+type Service struct {
+	Profiles    *profile.Store
+	Vault       vault.Vault
+	Live        claudecfg.Store
+	LockPath    string
+	LockTimeout time.Duration
+}
+
+// New returns a Service with a 10s lock timeout.
+func New(p *profile.Store, v vault.Vault, live claudecfg.Store, lockPath string) *Service {
+	return &Service{Profiles: p, Vault: v, Live: live, LockPath: lockPath, LockTimeout: 10 * time.Second}
+}
+
+// WithLock runs fn while holding the cross-process cid lock. Callers that
+// write profiles outside Capture/Switch (add, remove) should wrap them in it.
+func (s *Service) WithLock(fn func() error) error {
+	if err := os.MkdirAll(filepath.Dir(s.LockPath), 0o700); err != nil {
+		return fmt.Errorf("create lock dir: %w", err)
+	}
+	l := flock.New(s.LockPath)
+	ctx, cancel := context.WithTimeout(context.Background(), s.LockTimeout)
+	defer cancel()
+	ok, err := l.TryLockContext(ctx, 50*time.Millisecond)
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("acquire lock: %w", err)
+	}
+	if !ok {
+		return ErrLockTimeout
+	}
+	defer func() { _ = l.Unlock() }()
+	return fn()
+}
+
+// Capture saves the live login as profile name, creating the profile if needed.
+func (s *Service) Capture(name string) (profile.Profile, error) {
+	var p profile.Profile
+	err := s.WithLock(func() error {
+		var err error
+		p, err = s.capture(name)
+		return err
+	})
+	return p, err
+}
+
+func (s *Service) capture(name string) (profile.Profile, error) {
+	live, err := s.Live.Read()
+	if err != nil {
+		return profile.Profile{}, err
+	}
+	p, created, err := s.ensureProfile(name)
+	if err != nil {
+		return profile.Profile{}, err
+	}
+	if err := s.store(p.Name, live); err != nil {
+		if created {
+			err = errors.Join(err, s.Profiles.Remove(p.Name))
+		}
+		return profile.Profile{}, err
+	}
+	if err := s.Profiles.SetEmail(p.Name, live.Email()); err != nil {
+		return profile.Profile{}, err
+	}
+	p.Email = live.Email()
+	return p, nil
+}
+
+func (s *Service) ensureProfile(name string) (p profile.Profile, created bool, err error) {
+	ps, err := s.Profiles.List()
+	if err != nil {
+		return p, false, err
+	}
+	for _, existing := range ps {
+		if strings.EqualFold(existing.Name, name) {
+			return existing, false, nil
+		}
+	}
+	p, err = s.Profiles.Add(name)
+	return p, err == nil, err
+}
+
+func (s *Service) store(name string, b credentials.Bundle) error {
+	data, err := b.Marshal()
+	if err != nil {
+		return err
+	}
+	return s.Vault.Put(name, data)
+}
+
+// Switch makes the profile identified by arg (index or name) the live login.
+// Before overwriting, it re-captures the live account (its tokens rotate) into
+// its own profile, and refuses if the live account is not a saved profile.
+func (s *Service) Switch(arg string) (Result, error) {
+	var res Result
+	err := s.WithLock(func() error {
+		var err error
+		res, err = s.switchTo(arg)
+		return err
+	})
+	return res, err
+}
+
+func (s *Service) switchTo(arg string) (Result, error) {
+	target, err := s.Profiles.Resolve(arg)
+	if err != nil {
+		return Result{}, err
+	}
+	live, err := s.Live.Read()
+	hasLive := err == nil
+	if err != nil && !errors.Is(err, claudecfg.ErrNoCredentials) {
+		return Result{}, err
+	}
+
+	res := Result{To: target}
+	if hasLive {
+		owner, err := s.liveOwner(live.Email())
+		if err != nil {
+			return Result{}, err
+		}
+		if err := s.store(owner.Name, live); err != nil {
+			return Result{}, err
+		}
+		res.From = owner
+		// Already live and active: nothing to write (the vault copy was refreshed).
+		if active, aerr := s.Profiles.Active(); aerr == nil && active.Name == target.Name && owner.Name == target.Name {
+			res.NoOp = true
+			return res, nil
+		}
+	}
+
+	next, err := s.load(target.Name)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := s.Live.Write(next); err != nil {
+		return Result{}, err
+	}
+	if err := s.verify(next); err != nil {
+		return Result{}, err
+	}
+	if err := s.Profiles.SetActive(target.Name); err != nil {
+		return Result{}, err
+	}
+	res.RemoteControlWarning = true
+	return res, nil
+}
+
+// liveOwner finds the saved profile whose email matches the live account,
+// preferring the active one.
+func (s *Service) liveOwner(email string) (profile.Profile, error) {
+	if email == "" {
+		return profile.Profile{}, ErrUnknownLiveAccount
+	}
+	if active, err := s.Profiles.Active(); err == nil && strings.EqualFold(active.Email, email) {
+		return active, nil
+	}
+	ps, err := s.Profiles.List()
+	if err != nil {
+		return profile.Profile{}, err
+	}
+	for _, p := range ps {
+		if strings.EqualFold(p.Email, email) {
+			return p, nil
+		}
+	}
+	return profile.Profile{}, ErrUnknownLiveAccount
+}
+
+func (s *Service) load(name string) (credentials.Bundle, error) {
+	raw, err := s.Vault.Get(name)
+	if err != nil {
+		return credentials.Bundle{}, fmt.Errorf("load credentials for %q: %w", name, err)
+	}
+	return credentials.Unmarshal(raw)
+}
+
+// verify re-reads the live store and checks account and token expiry.
+func (s *Service) verify(want credentials.Bundle) error {
+	got, err := s.Live.Read()
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrVerify, err)
+	}
+	if !strings.EqualFold(got.Email(), want.Email()) || got.ExpiresAt() != want.ExpiresAt() {
+		return ErrVerify
+	}
+	return nil
+}
