@@ -1,6 +1,6 @@
 {
   "name": "account-switch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Hot-swap between multiple Anthropic accounts inside a running Claude Code session via /account commands backed by the cid CLI.",
   "author": {
     "name": "nicoarbelaez",
