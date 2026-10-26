@@ -10,7 +10,7 @@ Claude Code supports one logged-in account at a time. Switching normally means l
 
 - A single `~/.claude` directory stays in use.
 - Credentials of inactive accounts (the credentials file on Windows/Linux, the `Claude Code-credentials` Keychain item on macOS, plus the `oauthAccount` block of `~/.claude.json`) live in the OS keyring: Windows Credential Manager, macOS Keychain, or Linux Secret Service.
-- When a token expires, Claude Code refreshes it. If that fails, run `cid relogin <name>` in a terminal: it starts the Claude Code login for that account and refreshes the profile.
+- When a token expires, Claude Code refreshes it. If that fails, run `cid relogin <name>` (or `/account relogin <name>` in Claude Code): it starts the Claude Code login for that account and refreshes the profile.
 - `cid` never calls Anthropic OAuth endpoints itself.
 
 ## Plugin commands
@@ -19,7 +19,9 @@ The repository is also a Claude Code plugin marketplace. The plugin provides:
 
 - `/account` to list accounts
 - `/account 2` or `/account <name>` to switch
-- `/account add <name> --current` to capture the current login as a profile (run `/login` first; use `cid add <name>` in a terminal to log in automatically)
+- `/account add <name>` to log in through the browser and save the account as a profile
+- `/account relogin <n|name>` to refresh a profile's login
+- `/account add <name> --current` to capture the login that is live in Claude Code (run `/login` first)
 - `/account config` to configure language and options
 
 The same operations are available from the CLI binary `cid`. Supported platforms: Windows, macOS, Linux. Languages: English and Spanish.
@@ -75,11 +77,9 @@ Then restart Claude Code so it picks up `cid` on your `PATH`. Plugin commands ar
 
 ### 4. First use
 
-1. In a terminal, run `cid add a` and sign in with your first account in the browser.
+1. Run `cid add a` (or `/account add a` in Claude Code) and sign in with your first account in the browser.
 2. Run `cid add b` and sign in with your second account.
 3. Switch with `/account 1` or `/account b`.
-
-Prefer to stay inside Claude Code? Run `/login`, then `/account add a --current`.
 
 To try the plugin from a local checkout without installing, run `claude --plugin-dir ./plugin`.
 
@@ -110,7 +110,8 @@ The plugin provides one skill, `account`, whose command is answered by a hook th
 /account              list profiles
 /account 2            switch to the second profile
 /account isa          switch to the profile named isa
-/account add isa --current   save the current login as "isa"
+/account add isa     log in in the browser and save the account as "isa"
+/account relogin isa refresh the login of "isa"
 /account config       show paths, backend and language
 ```
 
@@ -132,7 +133,9 @@ Security: arguments never reach a shell. The hook runs `cid` directly (exec form
 
 `cid relogin <n|name>` does the same for an existing profile, pre-filling its email. It refuses to save if you sign in with a different account, overwrites the profile's stored login, and, when the profile is the active one, also refreshes the live Claude Code login.
 
-Requirements and fallbacks: `claude` must be on your `PATH`, and macOS is not supported for the isolated login yet. When the login cannot run or produces no credentials, `cid` prints the manual steps (run `/login` in Claude Code, then `cid add <name> --current`) and exits with code 1. The plugin hook has no terminal, so `/account add` and `/account relogin` only tell you to run the command in a terminal.
+Requirements and fallbacks: `claude` must be on your `PATH`, and macOS is not supported for the isolated login yet. When the login cannot run or produces no credentials, `cid` prints the cause and one short retry sentence, and exits with code 1. On macOS use `/login` and then `cid add <name> --current`.
+
+Inside Claude Code, `/account add` and `/account relogin` run the same login from the plugin hook: the browser opens, the hook waits up to 10 minutes and then shows the result without a model turn. If it fails, the assistant explains the cause in a sentence and can retry when you ask.
 
 ### Commands
 
@@ -143,7 +146,7 @@ Requirements and fallbacks: `claude` must be on your `PATH`, and macOS is not su
 | `cid add <name> [--force] [--console] [--sso]` | Log in through Claude Code in an isolated config directory and save the account as a profile. The live login and the active profile are not changed. Re-run it to refresh a profile. It refuses to replace a profile that holds a different account unless you pass `--force`, and never saves an account that is already stored under another name. |
 | `cid add <name> --current [--force]` | Save the current Claude Code login as a profile and mark it active (run `/login` first). Same guards as above. |
 | `cid remove <n\|name>` | Remove a profile and its keyring entry. The active profile cannot be removed. |
-| `cid relogin <n\|name> [--console] [--sso]` | Log in again through Claude Code as the profile's account and refresh its saved login (and the live login if the profile is active). Refuses a different account. Falls back to printing the manual steps if the login cannot run. |
+| `cid relogin <n\|name> [--console] [--sso]` | Log in again through Claude Code as the profile's account and refresh its saved login (and the live login if the profile is active). Refuses a different account. If the login cannot run, it prints the cause in one line. |
 | `cid current [--json]` | Show the active profile and its token status. |
 | `cid config` | Show the profiles file, the Claude config directory, the credential backend and the language. |
 | `cid version` | Show the version. |

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/login"
 )
 
 // maxHookInput caps how much of the hook payload is read from stdin.
@@ -17,8 +18,11 @@ const maxHookInput = 64 << 10
 const maxHookContext = 9000
 
 const (
-	hookFailed   = "cid was already run for this command by the account-switch hook and failed. Do not run cid again. Output:\n"
-	hookRejected = "The account-switch hook rejected the arguments, so cid was not run. Do not run cid."
+	hookFailed = "cid already ran once for this command (from the account-switch hook) and failed. " +
+		"Explain the cause in one or two sentences, do not list steps, and offer to retry. " +
+		"Run cid again only if the user explicitly asks to retry. Output:\n"
+	hookRejected = "The account-switch hook rejected the arguments, so cid was not run. " +
+		"Explain in one sentence, do not list steps, and do not run cid unless the user explicitly asks."
 )
 
 // hookToken is what `/account` arguments may contain: a profile name or index.
@@ -62,46 +66,28 @@ func (a *app) hook() int {
 		return a.context(hookRejected)
 	}
 
-	if msg, ok := a.hookNeedsTerminal(args); ok {
-		return a.block(msg)
-	}
-
 	var out, errOut bytes.Buffer
 	d := a.Deps
 	d.Stdout, d.Stderr = &out, &errOut
+	d.Quiet = true
+	d.Login = hookLogin(d.Login)
 	if Run(d, args) != exitOK {
 		return a.context(hookFailed + out.String() + errOut.String())
 	}
 	return a.block(out.String())
 }
 
-// hookNeedsTerminal reports whether args would start a browser login (`add`
-// without --current, or `relogin`). The hook has no terminal and a short
-// timeout, so it explains how to run the command instead. Malformed commands
-// and unknown profiles are left to Run, which reports them.
-func (a *app) hookNeedsTerminal(args []string) (string, bool) {
-	if len(args) == 0 {
-		return "", false
+// hookLogin detaches the login child from the hook's streams: stdin is empty
+// (`claude auth login` finishes through the browser) and its output is
+// discarded, because the hook's stdout carries the hook JSON. A runner whose
+// streams cannot be redirected is dropped, so the login fails safely instead of
+// writing into the hook output.
+func hookLogin(r login.Runner) login.Runner {
+	s, ok := r.(login.Streamer)
+	if !ok {
+		return nil
 	}
-	switch args[0] {
-	case "add":
-		flags, rest := extractFlags(args[1:], "force", "current", "console", "sso")
-		if flags["current"] || len(rest) != 1 {
-			return "", false
-		}
-		return a.t(i18n.HookAddNeedsTerminal, rest[0], rest[0]), true
-	case "relogin":
-		_, rest := extractFlags(args[1:], "console", "sso")
-		if len(rest) != 1 {
-			return "", false
-		}
-		p, err := a.Profiles.Resolve(rest[0])
-		if err != nil {
-			return "", false
-		}
-		return a.t(i18n.HookReloginTerminal, p.Name, p.Name), true
-	}
-	return "", false
+	return s.WithStreams(strings.NewReader(""), io.Discard, io.Discard)
 }
 
 func validHookArgs(args []string) bool {

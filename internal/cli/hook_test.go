@@ -139,7 +139,8 @@ func TestHookFailureAddsContextAndRunsOnce(t *testing.T) {
 		cs := &countingSwap{Swapper: r.deps.Swap}
 		r.deps.Swap = cs
 		c := r.context(expansion("account", args))
-		if !strings.Contains(c.Specific.Context, "Do not run cid again") {
+		if !strings.Contains(c.Specific.Context, "already ran once") ||
+			!strings.Contains(c.Specific.Context, "only if the user explicitly asks") {
 			t.Errorf("%q: context = %q", args, c.Specific.Context)
 		}
 		if cs.calls > 1 {

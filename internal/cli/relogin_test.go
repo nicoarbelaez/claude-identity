@@ -106,8 +106,8 @@ func TestReloginUnknownProfileDoesNotStartLogin(t *testing.T) {
 	}
 }
 
-func TestReloginFallbacksPrintManualSteps(t *testing.T) {
-	steps := func(r *rig) string { return r.msg(i18n.ReloginSteps, "a@example.com", "a") }
+func TestReloginFailuresPrintOneLineRetry(t *testing.T) {
+	steps := func(r *rig) string { return r.msg(i18n.ReloginRetry, "a") }
 	tests := []struct {
 		name   string
 		setup  func(r *rig) *login.FakeRunner
@@ -150,7 +150,7 @@ func TestReloginDarwinFallsBackWithoutLogin(t *testing.T) {
 	if code := r.run("relogin", "a"); code != 1 {
 		t.Fatalf("exit %d, want 1", code)
 	}
-	for _, want := range []string{r.msg(i18n.LoginUnsupportedOS), r.msg(i18n.ReloginSteps, "a@example.com", "a")} {
+	for _, want := range []string{r.msg(i18n.LoginUnsupportedOS, "a")} {
 		if !strings.Contains(r.stderr.String(), want) {
 			t.Errorf("stderr = %q, missing %q", r.stderr, want)
 		}

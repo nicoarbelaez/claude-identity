@@ -64,7 +64,7 @@ func (a *app) addWithLogin(name string, force bool, opts login.Options) int {
 	if !profile.ValidName(name) {
 		return a.fail(profile.ErrInvalidName, name)
 	}
-	return a.withIsolatedLogin(opts, a.t(i18n.AddFallback, name), func(src swap.Source) int {
+	return a.withIsolatedLogin(opts, name, a.t(i18n.AddFallback, name), func(src swap.Source) int {
 		res, err := a.Swap.AddFrom(name, src, force)
 		if err != nil {
 			return a.fail(err, name)
@@ -77,16 +77,18 @@ func (a *app) addWithLogin(name string, force bool, opts login.Options) int {
 
 // withIsolatedLogin creates a private temp config dir, runs the login in it,
 // and calls save with a source reading the new credentials. The dir is always
-// removed. Every failure to obtain a login prints a localized message plus the
-// manual fallback and exits 1.
-func (a *app) withIsolatedLogin(opts login.Options, fallback string, save func(swap.Source) int) int {
+// removed. Every failure to obtain a login prints a localized one-line cause
+// plus one short retry sentence and exits 1. name is the profile being saved.
+func (a *app) withIsolatedLogin(opts login.Options, name, retry string, save func(swap.Source) int) int {
 	failWith := func(msg string) int {
-		a.printf(a.Stderr, "%s\n%s\n", msg, fallback)
+		a.printf(a.Stderr, "%s\n%s\n", msg, retry)
 		return exitRuntime
 	}
 	if a.goos() == "darwin" {
-		// The macOS Keychain item for a non-default config dir is not known yet.
-		return failWith(a.t(i18n.LoginUnsupportedOS))
+		// The macOS Keychain item for a non-default config dir is not known yet;
+		// the message already says what to do instead, so no retry sentence.
+		a.printf(a.Stderr, "%s\n", a.t(i18n.LoginUnsupportedOS, name))
+		return exitRuntime
 	}
 	if a.Login == nil {
 		// A wiring bug in main, not a missing `claude`.
@@ -113,7 +115,9 @@ func (a *app) withIsolatedLogin(opts login.Options, fallback string, save func(s
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	a.printf(a.Stdout, "%s\n", a.t(i18n.LoginStarting))
+	if !a.Quiet {
+		a.printf(a.Stdout, "%s\n", a.t(i18n.LoginStarting))
+	}
 	if err := a.Login.Login(ctx, dir, opts); err != nil {
 		if errors.Is(err, login.ErrNotInstalled) {
 			return failWith(a.t(i18n.LoginClaudeMissing))

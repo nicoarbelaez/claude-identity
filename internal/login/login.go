@@ -38,6 +38,15 @@ type Runner interface {
 	Login(ctx context.Context, configDir string, opts Options) error
 }
 
+// Streamer is implemented by runners whose child process streams can be
+// redirected. The hook uses it so the login child never writes to the hook's
+// stdout, which carries the hook JSON.
+type Streamer interface {
+	// WithStreams returns a runner that uses the given streams for the login
+	// child. The receiver's own configuration is not modified.
+	WithStreams(stdin io.Reader, stdout, stderr io.Writer) Runner
+}
+
 // Args returns the arguments passed to `claude` for opts.
 func Args(opts Options) []string {
 	args := []string{"auth", "login"}
@@ -75,6 +84,12 @@ type ExecRunner struct {
 	Timeout time.Duration
 	// command overrides the executable name ("claude"); tests only.
 	command string
+}
+
+// WithStreams returns a copy of r that uses the given streams.
+func (r ExecRunner) WithStreams(stdin io.Reader, stdout, stderr io.Writer) Runner {
+	r.Stdin, r.Stdout, r.Stderr = stdin, stdout, stderr
+	return r
 }
 
 // Login runs `claude auth login` with CLAUDE_CONFIG_DIR=configDir and waits
@@ -130,11 +145,38 @@ type Call struct {
 type FakeRunner struct {
 	Fn    func(configDir string, opts Options) error
 	Calls []Call
+
+	// Noise is written to the redirected Stdout and Stderr during Login, like
+	// the progress text of the real login.
+	Noise string
+	// Streamed reports that WithStreams was applied; InputRead is what the
+	// redirected Stdin yielded during Login.
+	Streamed  bool
+	InputRead string
+
+	stdin          io.Reader
+	stdout, stderr io.Writer
+}
+
+// WithStreams records the streams and returns f itself, so calls stay visible.
+func (f *FakeRunner) WithStreams(stdin io.Reader, stdout, stderr io.Writer) Runner {
+	f.Streamed = true
+	f.stdin, f.stdout, f.stderr = stdin, stdout, stderr
+	return f
 }
 
 // Login records the call and returns Fn's result (nil when Fn is nil).
 func (f *FakeRunner) Login(_ context.Context, configDir string, opts Options) error {
 	f.Calls = append(f.Calls, Call{ConfigDir: configDir, Opts: opts})
+	if f.stdin != nil {
+		b, _ := io.ReadAll(f.stdin)
+		f.InputRead = string(b)
+	}
+	for _, w := range []io.Writer{f.stdout, f.stderr} {
+		if w != nil {
+			_, _ = io.WriteString(w, f.Noise)
+		}
+	}
 	if f.Fn == nil {
 		return nil
 	}

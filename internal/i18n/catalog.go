@@ -47,7 +47,7 @@ const (
 	StatusNeedsLogin    Key = "status.needs_login"
 	StatusUnknown       Key = "status.unknown"
 	CurrentStatus       Key = "current.status"
-	ReloginSteps        Key = "relogin.steps"
+	ReloginRetry        Key = "relogin.retry"
 )
 
 // Message keys for `cid uninstall`.
@@ -78,8 +78,6 @@ const (
 	ReloginEmailMismatch Key = "relogin.email_mismatch"
 	ReloginDone          Key = "relogin.done"
 	ReloginLiveUpdated   Key = "relogin.live_updated"
-	HookAddNeedsTerminal Key = "hook.add_needs_terminal"
-	HookReloginTerminal  Key = "hook.relogin_needs_terminal"
 
 	LoginTimedOut            Key = "login.timed_out"
 	LoginRunnerMissing       Key = "login.runner_missing"
@@ -139,22 +137,20 @@ var catalogEN = map[Key]string{
 	UninstallStepFailed:  "Could not remove %s: %s",
 	UninstallDone:        "cid data removed. Claude Code stays logged in with its current account.",
 	UninstallIncomplete:  "Uninstall finished with errors; see the messages above and run `cid uninstall` again to retry.",
-	UninstallManual:      "To finish, remove the binary and the plugin yourself:\n  1. Binary: %s\n     %s\n  2. In Claude Code run:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
+	UninstallManual:      "To finish, remove the binary and the plugin yourself.\nBinary: %s\n  %s\nPlugin (in Claude Code): /plugin uninstall account-switch@nicoarbelaez-tools and /plugin marketplace remove nicoarbelaez-tools",
 	UninstallDeleteCmd:   "Delete it with: %s",
-	ReloginSteps:         "1. In Claude Code run /login and sign in as %s.\n2. Run: cid add %s --current",
+	ReloginRetry:         "Run \"cid relogin %s\" to try again.",
 
 	LoginStarting:        "Starting the Claude Code login. Complete it in your browser...",
 	LoginClaudeMissing:   "The `claude` command was not found on PATH.",
 	LoginFailed:          "The Claude Code login did not finish successfully: %s",
 	LoginNoCredentials:   "The login finished but no credentials were found.",
-	LoginUnsupportedOS:   "Automatic login is not supported on macOS yet.",
-	AddFallback:          "To add the account manually: run /login in Claude Code, then run: cid add %s --current",
+	LoginUnsupportedOS:   "Automatic login is not available on macOS yet; use \"cid add %s --current\" after /login.",
+	AddFallback:          "Run \"cid add %s\" to try again.",
 	LoginNotSwitched:     "Your current Claude Code login was not changed. Run `cid %s` to switch to it.",
 	ReloginEmailMismatch: "You signed in as %s, but profile %q is for %s. Nothing was saved. Run `cid relogin %s` again and sign in with the right account.",
 	ReloginDone:          "Login refreshed for profile %q.",
 	ReloginLiveUpdated:   "Claude Code is now using the refreshed login.",
-	HookAddNeedsTerminal: "Adding an account opens a browser login, which needs a terminal. Run `cid add %s` in a terminal, or run /login and then `/account add %s --current`.",
-	HookReloginTerminal:  "Refreshing a login opens a browser login, which needs a terminal. Run `cid relogin %s` in a terminal, or run /login and then `/account add %s --current`.",
 
 	LoginTimedOut:            "The login timed out after 10 minutes.",
 	LoginRunnerMissing:       "Internal error: no login runner is configured.",
@@ -231,22 +227,20 @@ var catalogES = map[Key]string{
 	UninstallStepFailed:  "No se pudo eliminar %s: %s",
 	UninstallDone:        "Datos de cid eliminados. Claude Code sigue con la sesión de su cuenta actual.",
 	UninstallIncomplete:  "La desinstalación terminó con errores; revisa los mensajes anteriores y vuelve a ejecutar `cid uninstall` para reintentar.",
-	UninstallManual:      "Para terminar, elimina tú mismo el binario y el plugin:\n  1. Binario: %s\n     %s\n  2. En Claude Code ejecuta:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
+	UninstallManual:      "Para terminar, elimina tú mismo el binario y el plugin.\nBinario: %s\n  %s\nPlugin (en Claude Code): /plugin uninstall account-switch@nicoarbelaez-tools y /plugin marketplace remove nicoarbelaez-tools",
 	UninstallDeleteCmd:   "Elimínalo con: %s",
-	ReloginSteps:         "1. En Claude Code ejecuta /login e inicia sesión como %s.\n2. Ejecuta: cid add %s --current",
+	ReloginRetry:         "Ejecuta \"cid relogin %s\" para intentarlo de nuevo.",
 
 	LoginStarting:        "Iniciando el inicio de sesión de Claude Code. Complétalo en tu navegador...",
 	LoginClaudeMissing:   "No se encontró el comando `claude` en el PATH.",
 	LoginFailed:          "El inicio de sesión de Claude Code no terminó correctamente: %s",
 	LoginNoCredentials:   "El inicio de sesión terminó, pero no se encontraron credenciales.",
-	LoginUnsupportedOS:   "El inicio de sesión automático aún no está disponible en macOS.",
-	AddFallback:          "Para agregar la cuenta manualmente: ejecuta /login en Claude Code y luego: cid add %s --current",
+	LoginUnsupportedOS:   "El inicio de sesión automático aún no está disponible en macOS; usa \"cid add %s --current\" después de /login.",
+	AddFallback:          "Ejecuta \"cid add %s\" para intentarlo de nuevo.",
 	LoginNotSwitched:     "Tu sesión actual de Claude Code no cambió. Ejecuta `cid %s` para cambiar a ella.",
 	ReloginEmailMismatch: "Iniciaste sesión como %s, pero el perfil %q es de %s. No se guardó nada. Ejecuta `cid relogin %s` de nuevo e inicia sesión con la cuenta correcta.",
 	ReloginDone:          "Sesión renovada para el perfil %q.",
 	ReloginLiveUpdated:   "Claude Code ya usa la sesión renovada.",
-	HookAddNeedsTerminal: "Agregar una cuenta abre un inicio de sesión en el navegador, que necesita una terminal. Ejecuta `cid add %s` en una terminal, o ejecuta /login y luego `/account add %s --current`.",
-	HookReloginTerminal:  "Renovar una sesión abre un inicio de sesión en el navegador, que necesita una terminal. Ejecuta `cid relogin %s` en una terminal, o ejecuta /login y luego `/account add %s --current`.",
 
 	LoginTimedOut:            "El inicio de sesión superó el límite de 10 minutos.",
 	LoginRunnerMissing:       "Error interno: no hay un ejecutor de inicio de sesión configurado.",

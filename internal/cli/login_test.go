@@ -256,7 +256,7 @@ func TestAddAutoLoginDarwinFallsBackWithoutLogin(t *testing.T) {
 	if code := r.run("add", "c"); code != 1 {
 		t.Fatalf("exit %d, want 1", code)
 	}
-	for _, want := range []string{r.msg(i18n.LoginUnsupportedOS), r.msg(i18n.AddFallback, "c")} {
+	for _, want := range []string{r.msg(i18n.LoginUnsupportedOS, "c")} {
 		if !strings.Contains(r.stderr.String(), want) {
 			t.Errorf("stderr = %q, missing %q", r.stderr, want)
 		}
