@@ -66,6 +66,22 @@ const (
 	UninstallDeleteCmd   Key = "uninstall.delete_cmd"
 )
 
+// Message keys for the automatic login flow (cid add / cid relogin).
+const (
+	LoginStarting        Key = "login.starting"
+	LoginClaudeMissing   Key = "login.claude_missing"
+	LoginFailed          Key = "login.failed"
+	LoginNoCredentials   Key = "login.no_credentials"
+	LoginUnsupportedOS   Key = "login.unsupported_os"
+	AddFallback          Key = "login.add_fallback"
+	LoginNotSwitched     Key = "login.not_switched"
+	ReloginEmailMismatch Key = "relogin.email_mismatch"
+	ReloginDone          Key = "relogin.done"
+	ReloginLiveUpdated   Key = "relogin.live_updated"
+	HookAddNeedsTerminal Key = "hook.add_needs_terminal"
+	HookReloginTerminal  Key = "hook.relogin_needs_terminal"
+)
+
 var catalogEN = map[Key]string{
 	ProfileAdded:       "Profile %q added.",
 	ProfileRemoved:     "Profile %q removed.",
@@ -106,7 +122,6 @@ var catalogEN = map[Key]string{
 	StatusNeedsLogin:    "login required",
 	StatusUnknown:       "unknown",
 	CurrentStatus:       "Status: %s",
-	ReloginSteps:        "1. In Claude Code run /login and sign in as %s.\n2. Run: cid add %s",
 
 	UninstallPlan:        "This will remove:\n  - %d saved profile(s) and their stored credentials\n  - the profiles file and cid config folder: %s",
 	UninstallPlanPath:    "  - %s from your user PATH",
@@ -120,6 +135,21 @@ var catalogEN = map[Key]string{
 	UninstallIncomplete:  "Uninstall finished with errors; see the messages above and run `cid uninstall` again to retry.",
 	UninstallManual:      "To finish, remove the binary and the plugin yourself:\n  1. Binary: %s\n     %s\n  2. In Claude Code run:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
 	UninstallDeleteCmd:   "Delete it with: %s",
+	ReloginSteps:         "1. In Claude Code run /login and sign in as %s.\n2. Run: cid add %s --current",
+
+	LoginStarting:        "Starting the Claude Code login. Complete it in your browser...",
+	LoginClaudeMissing:   "The `claude` command was not found on PATH.",
+	LoginFailed:          "The Claude Code login did not finish successfully.",
+	LoginNoCredentials:   "The login finished but no credentials were found.",
+	LoginUnsupportedOS:   "Automatic login is not supported on macOS yet.",
+	AddFallback:          "To add the account manually: run /login in Claude Code, then run: cid add %s --current",
+	LoginNotSwitched:     "Your current Claude Code login was not changed. Run `cid %s` to switch to it.",
+	ReloginEmailMismatch: "You signed in as %s, but profile %q is for %s. Nothing was saved. Run `cid relogin %s` again and sign in with the right account.",
+	ReloginDone:          "Login refreshed for profile %q.",
+	ReloginLiveUpdated:   "Claude Code is now using the refreshed login.",
+	HookAddNeedsTerminal: "Adding an account opens a browser login, which needs a terminal. Run `cid add %s` in a terminal, or run /login and then `/account add %s --current`.",
+	HookReloginTerminal:  "Refreshing a login opens a browser login, which needs a terminal. Run `cid relogin %s` in a terminal, or run /login and then `/account add %s --current`.",
+
 	Usage: `Usage:
   cid                       List profiles
   cid list [--json]         List profiles
@@ -175,7 +205,6 @@ var catalogES = map[Key]string{
 	StatusNeedsLogin:    "requiere iniciar sesión",
 	StatusUnknown:       "desconocido",
 	CurrentStatus:       "Estado: %s",
-	ReloginSteps:        "1. En Claude Code ejecuta /login e inicia sesión como %s.\n2. Ejecuta: cid add %s",
 
 	UninstallPlan:        "Se eliminará:\n  - %d perfil(es) guardado(s) y sus credenciales almacenadas\n  - el archivo de perfiles y la carpeta de configuración de cid: %s",
 	UninstallPlanPath:    "  - %s del PATH de tu usuario",
@@ -189,6 +218,21 @@ var catalogES = map[Key]string{
 	UninstallIncomplete:  "La desinstalación terminó con errores; revisa los mensajes anteriores y vuelve a ejecutar `cid uninstall` para reintentar.",
 	UninstallManual:      "Para terminar, elimina tú mismo el binario y el plugin:\n  1. Binario: %s\n     %s\n  2. En Claude Code ejecuta:\n     /plugin uninstall account-switch@nicoarbelaez-tools\n     /plugin marketplace remove nicoarbelaez-tools",
 	UninstallDeleteCmd:   "Elimínalo con: %s",
+	ReloginSteps:         "1. En Claude Code ejecuta /login e inicia sesión como %s.\n2. Ejecuta: cid add %s --current",
+
+	LoginStarting:        "Iniciando el inicio de sesión de Claude Code. Complétalo en tu navegador...",
+	LoginClaudeMissing:   "No se encontró el comando `claude` en el PATH.",
+	LoginFailed:          "El inicio de sesión de Claude Code no terminó correctamente.",
+	LoginNoCredentials:   "El inicio de sesión terminó, pero no se encontraron credenciales.",
+	LoginUnsupportedOS:   "El inicio de sesión automático aún no está disponible en macOS.",
+	AddFallback:          "Para agregar la cuenta manualmente: ejecuta /login en Claude Code y luego: cid add %s --current",
+	LoginNotSwitched:     "Tu sesión actual de Claude Code no cambió. Ejecuta `cid %s` para cambiar a ella.",
+	ReloginEmailMismatch: "Iniciaste sesión como %s, pero el perfil %q es de %s. No se guardó nada. Ejecuta `cid relogin %s` de nuevo e inicia sesión con la cuenta correcta.",
+	ReloginDone:          "Sesión renovada para el perfil %q.",
+	ReloginLiveUpdated:   "Claude Code ya usa la sesión renovada.",
+	HookAddNeedsTerminal: "Agregar una cuenta abre un inicio de sesión en el navegador, que necesita una terminal. Ejecuta `cid add %s` en una terminal, o ejecuta /login y luego `/account add %s --current`.",
+	HookReloginTerminal:  "Renovar una sesión abre un inicio de sesión en el navegador, que necesita una terminal. Ejecuta `cid relogin %s` en una terminal, o ejecuta /login y luego `/account add %s --current`.",
+
 	Usage: `Uso:
   cid                       Lista los perfiles
   cid list [--json]         Lista los perfiles

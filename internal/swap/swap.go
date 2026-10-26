@@ -115,22 +115,49 @@ type AddResult struct {
 func (s *Service) Add(name string, force bool) (AddResult, error) {
 	var res AddResult
 	err := s.WithLock(func() error {
-		live, err := s.Live.Read()
-		if err != nil {
+		var err error
+		if res, err = s.addFrom(name, s.Live, force); err != nil {
 			return err
 		}
-		replaced, err := s.checkAdd(name, live.Email(), force)
-		if err != nil {
-			return err
-		}
-		p, err := s.captureLive(name, live)
-		if err != nil {
-			return err
-		}
-		res = AddResult{Profile: p, Replaced: replaced}
-		return s.Profiles.SetActive(p.Name)
+		return s.Profiles.SetActive(res.Profile.Name)
 	})
 	return res, err
+}
+
+// Source is a read-only credential source, such as the isolated config dir of
+// a `claude auth login` run.
+type Source interface {
+	Read() (credentials.Bundle, error)
+}
+
+// AddFrom saves the login held by src as profile name under the same guards
+// as Add. Unlike Add it never marks the profile active and never touches the
+// live Claude Code login.
+func (s *Service) AddFrom(name string, src Source, force bool) (AddResult, error) {
+	var res AddResult
+	err := s.WithLock(func() error {
+		var err error
+		res, err = s.addFrom(name, src, force)
+		return err
+	})
+	return res, err
+}
+
+// addFrom applies the Add guards and saves src's login. Callers hold the lock.
+func (s *Service) addFrom(name string, src Source, force bool) (AddResult, error) {
+	b, err := src.Read()
+	if err != nil {
+		return AddResult{}, err
+	}
+	replaced, err := s.checkAdd(name, b.Email(), force)
+	if err != nil {
+		return AddResult{}, err
+	}
+	p, err := s.captureLive(name, b)
+	if err != nil {
+		return AddResult{}, err
+	}
+	return AddResult{Profile: p, Replaced: replaced}, nil
 }
 
 // checkAdd applies the Add guards for the live account email and reports

@@ -14,6 +14,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/login"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
 	"github.com/nicoarbelaez/claude-identity/internal/version"
@@ -38,6 +39,7 @@ type ProfileReader interface {
 type Swapper interface {
 	Switch(arg string) (swap.Result, error)
 	Add(name string, force bool) (swap.AddResult, error)
+	AddFrom(name string, src swap.Source, force bool) (swap.AddResult, error)
 	Remove(arg string) (profile.Profile, error)
 	Status(name string, active bool) credentials.Status
 }
@@ -61,6 +63,10 @@ type Deps struct {
 	Stdin     io.Reader // read only by the internal `hook` command
 	Stdout    io.Writer
 	Stderr    io.Writer
+	// Login runs Claude Code's login in an isolated config dir (cid add/relogin).
+	Login login.Runner
+	// GOOS is the operating system; empty means runtime.GOOS. Tests set it.
+	GOOS string
 }
 
 // Run executes one cid invocation and returns the process exit code:
@@ -281,17 +287,11 @@ func (a *app) doSwitch(arg string) int {
 	return exitOK
 }
 
+// add saves an account as a profile. By default it runs Claude Code's login in
+// an isolated config dir; with --current it captures the live login instead.
 func (a *app) add(args []string) int {
-	// --force may follow the name, which the flag package would not parse.
-	force := false
-	rest := make([]string, 0, len(args))
-	for _, arg := range args {
-		if arg == "--force" || arg == "-force" {
-			force = true
-			continue
-		}
-		rest = append(rest, arg)
-	}
+	// Flags may follow the name, which the flag package would not parse.
+	flags, rest := extractFlags(args, "force", "current", "console", "sso")
 	if len(rest) == 0 {
 		return a.usageError(a.t(i18n.MissingName))
 	}
@@ -299,16 +299,13 @@ func (a *app) add(args []string) int {
 	if !ok {
 		return a.usageError("")
 	}
-	res, err := a.Swap.Add(pos[0], force)
-	if err != nil {
-		return a.fail(err, pos[0])
+	if flags["current"] {
+		if flags["console"] || flags["sso"] {
+			return a.usageError("")
+		}
+		return a.addCurrent(pos[0], flags["force"])
 	}
-	msg := i18n.ProfileAdded
-	if res.Replaced {
-		msg = i18n.ProfileReplaced
-	}
-	a.printf(a.Stdout, "%s\n", a.t(msg, res.Profile.Name))
-	return exitOK
+	return a.addWithLogin(pos[0], flags["force"], login.Options{Console: flags["console"], SSO: flags["sso"]})
 }
 
 func (a *app) remove(args []string) int {
