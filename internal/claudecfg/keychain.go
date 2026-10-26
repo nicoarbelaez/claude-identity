@@ -116,16 +116,33 @@ func (k *KeychainStore) Write(b credentials.Bundle) error {
 	if err != nil {
 		return err
 	}
+	original, err := o.encode()
+	if err != nil {
+		return err
+	}
 	o.set(keyOAuth, b.ClaudeAIOAuth)
 	data, err := o.encode()
 	if err != nil {
 		return err
 	}
+	if err := k.update(acct, data); err != nil {
+		return err
+	}
+	accountErr := writeAccount(k.paths.ClaudeJSON, b.OAuthAccount, nil)
+	if accountErr == nil {
+		return nil
+	}
+	// Roll the item back so the keychain and .claude.json stay consistent.
+	return errors.Join(accountErr, k.update(acct, original))
+}
+
+// update rewrites the keychain item payload; errors never carry the payload.
+func (k *KeychainStore) update(acct string, data []byte) error {
 	if _, err := k.run.Run(securityBin, "add-generic-password", "-U",
 		"-s", keychainService, "-a", acct, "-w", string(bytes.TrimSpace(data))); err != nil {
 		return errKeychain
 	}
-	return writeAccount(k.paths.ClaudeJSON, b.OAuthAccount, nil)
+	return nil
 }
 
 // Current returns the email of the account recorded in .claude.json.
@@ -133,8 +150,11 @@ func (k *KeychainStore) Current() (string, error) { return currentEmail(k.paths.
 
 func (k *KeychainStore) item() (*object, error) {
 	out, err := k.run.Run(securityBin, "find-generic-password", "-s", keychainService, "-w")
-	if err != nil {
+	if errors.Is(err, ErrKeychainItemNotFound) {
 		return nil, ErrNoCredentials
+	}
+	if err != nil {
+		return nil, errKeychain
 	}
 	return parseObject(bytes.TrimSpace(out))
 }

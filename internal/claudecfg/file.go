@@ -3,6 +3,9 @@ package claudecfg
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
@@ -52,10 +55,26 @@ func (s *FileStore) Write(b credentials.Bundle) error {
 	if len(b.ClaudeAIOAuth) == 0 {
 		return errNoOAuthBlock
 	}
+	old, readErr := os.ReadFile(s.paths.Credentials)
+	existed := readErr == nil
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		return fmt.Errorf("read %s: %w", filepath.Base(s.paths.Credentials), readErr)
+	}
 	if err := replaceKey(s.paths.Credentials, keyOAuth, b.ClaudeAIOAuth, s.rename); err != nil {
 		return err
 	}
-	return writeAccount(s.paths.ClaudeJSON, b.OAuthAccount, s.rename)
+	accountErr := writeAccount(s.paths.ClaudeJSON, b.OAuthAccount, s.rename)
+	if accountErr == nil {
+		return nil
+	}
+	// Roll the credentials file back so both files stay consistent.
+	var rollbackErr error
+	if existed {
+		rollbackErr = writeAtomic(s.paths.Credentials, old, s.rename)
+	} else if err := os.Remove(s.paths.Credentials); err != nil && !errors.Is(err, os.ErrNotExist) {
+		rollbackErr = err
+	}
+	return errors.Join(accountErr, rollbackErr)
 }
 
 // Current returns the email of the account recorded in .claude.json.

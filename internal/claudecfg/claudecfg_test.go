@@ -347,6 +347,39 @@ func TestKeychainReadMissingItem(t *testing.T) {
 	}
 }
 
+func TestKeychainReadTransientFailureIsNotNoCredentials(t *testing.T) {
+	k, f, _ := keychainFixture(t)
+	f.failAll = errKeychain
+	_, err := k.Read()
+	if err == nil || errors.Is(err, ErrNoCredentials) {
+		t.Fatalf("want a non-ErrNoCredentials error, got %v", err)
+	}
+}
+
+func TestFileStoreWriteRollsBackCredentialsOnAccountFailure(t *testing.T) {
+	p := fakeHome(t)
+	writeFile(t, p.ClaudeJSON, "{bad")
+	if err := NewFileStore(p).Write(bundleB()); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := readFile(t, p.Credentials); got != credsA {
+		t.Errorf("credentials not rolled back: %q", got)
+	}
+}
+
+func TestKeychainWriteRollsBackItemOnAccountFailure(t *testing.T) {
+	k, f, p := keychainFixture(t)
+	writeFile(t, p.ClaudeJSON, "{bad")
+	if err := k.Write(bundleB()); err == nil {
+		t.Fatal("expected error")
+	}
+	_, got := topLevel(t, f.item)
+	_, want := topLevel(t, credsA)
+	if string(got["claudeAiOauth"]) != string(want["claudeAiOauth"]) {
+		t.Errorf("keychain item not rolled back: %s", got["claudeAiOauth"])
+	}
+}
+
 func TestOpenSelection(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	p := ResolvePaths(t.TempDir())
