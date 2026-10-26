@@ -67,6 +67,18 @@ Or add the marketplace first, then install:
 
 Plugin commands are namespaced as `/account-switch:account`.
 
+## Language
+
+`cid` speaks English and Spanish. The language is picked in this order, and the first match wins:
+
+1. `CID_LANG` environment variable (`en` or `es`, case-insensitive).
+2. The Claude Code `language` setting (`settings.json`, overridden by `settings.local.json`, in `CLAUDE_CONFIG_DIR` or `~/.claude`). Values such as `Spanish`, `español` or `es` select Spanish; `English` or `en` select English; anything else is ignored.
+3. `LC_ALL`, `LC_MESSAGES`, then `LANG` (for example `es_CO.UTF-8`).
+4. The OS user locale (Windows UI language, macOS `AppleLocale`).
+5. English.
+
+Only the base language matters, so `es-MX` and `es_ES` both select Spanish. Force a language with `CID_LANG=es cid list`.
+
 ## Security note
 
 This tool handles OAuth tokens. It stores them only in your OS keyring and never sends them anywhere. Please report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
