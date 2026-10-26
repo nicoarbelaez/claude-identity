@@ -20,11 +20,11 @@ Out: implementing OAuth, calling Anthropic endpoints, token refresh by us, macOS
 - Hook (`cid hook`) has no terminal and a 20s timeout: it must never start a login.
 - Go; Windows, macOS, Linux; English code, comments, docs; neutral Spanish for ES strings.
 
-## Open spike items (unverified, a user spike is running)
-- S1: does `claude auth login` write into `CLAUDE_CONFIG_DIR` (credentials file and `.claude.json` with `oauthAccount`)?
-- S2: does `claude auth login` work without a TTY on stdin (only matters if we ever pipe it; we attach the terminal)?
-- S3: macOS Keychain item name for a non-default config dir (blocks macOS support).
-If S1 fails, the isolated flow reports "no credentials" and falls back to the manual steps; the code paths stay valid.
+## Spike results (user run, Windows 11, Claude Code 2.1.310)
+- S1 confirmed: `claude auth login` with `CLAUDE_CONFIG_DIR=<tmp>` writes `.credentials.json` (`claudeAiOauth` with refreshToken) and `.claude.json` (`oauthAccount`) into `<tmp>`; the real `~/.claude` credentials stay unchanged.
+- S2 confirmed: it also completes with stdin redirected from NUL (browser login, exit 0), so a hook could start it given a long enough timeout.
+- `--email` only pre-fills the login page: the user can sign in with another account, so relogin must keep checking the email after login.
+- S3 still open: macOS Keychain item name for a non-default config dir (macOS stays on the manual flow).
 
 ## Checklist
 | ID | Status | Task | Route | Commit |
@@ -51,7 +51,7 @@ If S1 fails, the isolated flow reports "no credentials" and falls back to the ma
 - L1-L5 done, each with RED observed first (compile or assertion failure) and GREEN after the implementation. Tests use fake runners and temp dirs only; the real keyring and `~/.claude` are never touched.
 - Design: `login.Runner` interface (exec + `FakeRunner`); `swap.Service.AddFrom` shares the Add guard (`addFrom`) and neither marks active nor touches live; `swap.Service.Relogin` checks the email, overwrites stored credentials and writes the live store only for the active profile; the login itself runs outside the cross-process lock (only the save is locked).
 - `cid add` without `--current` is now the isolated login; existing live-capture tests were updated to pass `--current`.
-- Unverified, depends on the spike: S1 (`claude auth login` honors `CLAUDE_CONFIG_DIR`), S2 (no-TTY use), S3 (macOS). Until S1 is confirmed, a real run may end in the "no credentials" fallback.
+- S1 and S2 confirmed by the user spike; S3 (macOS) still open.
 
 ## Next step
-Run the user spike results (S1/S2) against a real `cid add` on Windows/Linux, then decide on macOS support (S3).
+User runs a real `cid add` and `cid relogin` on Windows. Then consider letting the hook start the login directly (S2 allows it; needs a longer hook timeout). macOS support waits on S3.
