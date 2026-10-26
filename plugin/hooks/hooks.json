@@ -9,7 +9,8 @@
             "type": "command",
             "command": "cid",
             "args": ["hook"],
-            "timeout": 20
+            "timeout": 660,
+            "statusMessage": "cid…"
           }
         ]
       }
