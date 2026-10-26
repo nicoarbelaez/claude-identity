@@ -20,6 +20,22 @@ const (
 	RemoteControlWarn  Key = "warn.remote_control_disconnected"
 	RestartHint        Key = "hint.restart"
 	VersionLine        Key = "version.line"
+
+	ListEmpty          Key = "profile.list_empty"
+	CurrentActive      Key = "current.active"
+	CurrentNone        Key = "current.none"
+	ConfigProfilesPath Key = "config.profiles_path"
+	ConfigClaudeDir    Key = "config.claude_dir"
+	ConfigBackend      Key = "config.backend"
+	ConfigLanguage     Key = "config.language"
+	BackendFile        Key = "config.backend_file"
+	BackendKeychain    Key = "config.backend_keychain"
+	NoLiveLogin        Key = "error.no_live_login"
+	InvalidName        Key = "error.invalid_name"
+	RemoveActive       Key = "error.remove_active"
+	GenericError       Key = "error.generic"
+	UnknownCommand     Key = "error.unknown_command"
+	Usage              Key = "usage.text"
 )
 
 var catalogEN = map[Key]string{
@@ -36,6 +52,32 @@ var catalogEN = map[Key]string{
 	RemoteControlWarn:  "Warning: switching accounts disconnects Remote Control. Reconnect it after the switch.",
 	RestartHint:        "If Claude Code still shows the previous account, restart it with `claude --continue`.",
 	VersionLine:        "cid %s",
+
+	ListEmpty:          "No profiles saved yet. Log in to Claude Code, then run `cid add <name>`.",
+	CurrentActive:      "Active profile: %s (%s)",
+	CurrentNone:        "No active profile.",
+	ConfigProfilesPath: "Profiles file: %s",
+	ConfigClaudeDir:    "Claude config dir: %s",
+	ConfigBackend:      "Credential backend: %s",
+	ConfigLanguage:     "Language: %s",
+	BackendFile:        "credentials file",
+	BackendKeychain:    "macOS Keychain",
+	NoLiveLogin:        "Claude Code has no login to save. Run `claude`, then `/login`, and try again.",
+	InvalidName:        "Invalid profile name. Use 1-32 characters of a-z, 0-9, '.', '_' or '-', starting with a letter or digit.",
+	RemoveActive:       "Cannot remove %q: it is the active profile. Switch to another profile first.",
+	GenericError:       "Error: %s",
+	UnknownCommand:     "Unknown command %q.",
+	Usage: `Usage:
+  cid                       List profiles
+  cid list [--json]         List profiles
+  cid <n|name>              Switch to a profile
+  cid switch <n|name>       Switch to a profile
+  cid add <name>            Save the current Claude Code login as a profile
+  cid remove <n|name>       Remove a profile (not the active one)
+  cid current [--json]      Show the active profile
+  cid config                Show config locations and language
+  cid version               Show the version
+  cid help                  Show this help`,
 }
 
 var catalogES = map[Key]string{
@@ -52,6 +94,32 @@ var catalogES = map[Key]string{
 	RemoteControlWarn:  "Advertencia: cambiar de cuenta desconecta Remote Control. Vuelve a conectarlo después del cambio.",
 	RestartHint:        "Si Claude Code aún muestra la cuenta anterior, reinícialo con `claude --continue`.",
 	VersionLine:        "cid %s",
+
+	ListEmpty:          "Aún no hay perfiles guardados. Inicia sesión en Claude Code y ejecuta `cid add <nombre>`.",
+	CurrentActive:      "Perfil activo: %s (%s)",
+	CurrentNone:        "No hay un perfil activo.",
+	ConfigProfilesPath: "Archivo de perfiles: %s",
+	ConfigClaudeDir:    "Directorio de configuración de Claude: %s",
+	ConfigBackend:      "Almacén de credenciales: %s",
+	ConfigLanguage:     "Idioma: %s",
+	BackendFile:        "archivo de credenciales",
+	BackendKeychain:    "Llavero de macOS",
+	NoLiveLogin:        "Claude Code no tiene ninguna sesión que guardar. Ejecuta `claude`, luego `/login` y vuelve a intentarlo.",
+	InvalidName:        "Nombre de perfil no válido. Usa de 1 a 32 caracteres entre a-z, 0-9, '.', '_' o '-', empezando por una letra o un dígito.",
+	RemoveActive:       "No se puede eliminar %q: es el perfil activo. Cambia primero a otro perfil.",
+	GenericError:       "Error: %s",
+	UnknownCommand:     "Comando desconocido %q.",
+	Usage: `Uso:
+  cid                       Lista los perfiles
+  cid list [--json]         Lista los perfiles
+  cid <n|nombre>            Cambia a un perfil
+  cid switch <n|nombre>     Cambia a un perfil
+  cid add <nombre>          Guarda la sesión actual de Claude Code como perfil
+  cid remove <n|nombre>     Elimina un perfil (no el activo)
+  cid current [--json]      Muestra el perfil activo
+  cid config                Muestra las rutas de configuración y el idioma
+  cid version               Muestra la versión
+  cid help                  Muestra esta ayuda`,
 }
 
 // T returns the message for key in lang, formatted with args. A key missing
