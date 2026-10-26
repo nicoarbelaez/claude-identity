@@ -41,6 +41,13 @@ const (
 	UnknownCommand     Key = "error.unknown_command"
 	HookDone           Key = "hook.done"
 	Usage              Key = "usage.text"
+
+	StatusOK            Key = "status.ok"
+	StatusAccessExpired Key = "status.access_expired"
+	StatusNeedsLogin    Key = "status.needs_login"
+	StatusUnknown       Key = "status.unknown"
+	CurrentStatus       Key = "current.status"
+	ReloginSteps        Key = "relogin.steps"
 )
 
 var catalogEN = map[Key]string{
@@ -77,6 +84,13 @@ var catalogEN = map[Key]string{
 	GenericError:       "Error: %s",
 	UnknownCommand:     "Unknown command %q.",
 	HookDone:           "Done.",
+
+	StatusOK:            "ok",
+	StatusAccessExpired: "token expired (auto-refresh)",
+	StatusNeedsLogin:    "login required",
+	StatusUnknown:       "unknown",
+	CurrentStatus:       "Status: %s",
+	ReloginSteps:        "1. In Claude Code run /login and sign in as %s.\n2. Run: cid add %s",
 	Usage: `Usage:
   cid                       List profiles
   cid list [--json]         List profiles
@@ -84,6 +98,7 @@ var catalogEN = map[Key]string{
   cid switch <n|name>       Switch to a profile
   cid add <name> [--force]  Save the current Claude Code login as a profile
   cid remove <n|name>       Remove a profile (not the active one)
+  cid relogin <n|name>      Show the steps to refresh a profile's login
   cid current [--json]      Show the active profile
   cid config                Show config locations and language
   cid version               Show the version
@@ -124,6 +139,13 @@ var catalogES = map[Key]string{
 	GenericError:       "Error: %s",
 	UnknownCommand:     "Comando desconocido %q.",
 	HookDone:           "Listo.",
+
+	StatusOK:            "ok",
+	StatusAccessExpired: "token vencido (se renueva solo)",
+	StatusNeedsLogin:    "requiere iniciar sesión",
+	StatusUnknown:       "desconocido",
+	CurrentStatus:       "Estado: %s",
+	ReloginSteps:        "1. En Claude Code ejecuta /login e inicia sesión como %s.\n2. Ejecuta: cid add %s",
 	Usage: `Uso:
   cid                       Lista los perfiles
   cid list [--json]         Lista los perfiles
@@ -131,6 +153,7 @@ var catalogES = map[Key]string{
   cid switch <n|nombre>     Cambia a un perfil
   cid add <nombre> [--force] Guarda la sesión actual de Claude Code como perfil
   cid remove <n|nombre>     Elimina un perfil (no el activo)
+  cid relogin <n|nombre>    Muestra los pasos para renovar la sesión de un perfil
   cid current [--json]      Muestra el perfil activo
   cid config                Muestra las rutas de configuración y el idioma
   cid version               Muestra la versión
