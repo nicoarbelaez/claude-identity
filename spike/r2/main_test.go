@@ -321,13 +321,38 @@ func TestInvalidInput(t *testing.T) {
 	}
 }
 
-func TestMacOSNotSupported(t *testing.T) {
-	h := newFakeHome(t)
+func TestMacOSGuard(t *testing.T) {
 	og := goos
 	goos = "darwin"
 	t.Cleanup(func() { goos = og })
-	_, err := h.run("backup")
-	if err == nil || !strings.Contains(err.Error(), "not supported in spike on macOS") {
+
+	t.Run("refused on real home (no --home)", func(t *testing.T) {
+		newFakeHome(t)
+		var buf bytes.Buffer
+		err := run([]string{"backup"}, &buf)
+		if err == nil || !strings.Contains(err.Error(), "not supported in spike on macOS") {
+			t.Fatalf("got %v", err)
+		}
+	})
+
+	t.Run("allowed with --home fake home", func(t *testing.T) {
+		h := newFakeHome(t)
+		h.setAccount("a", 1)
+		if _, err := h.run("capture", "a"); err != nil {
+			t.Fatalf("expected success on darwin with --home, got %v", err)
+		}
+	})
+}
+
+type failWriter struct{}
+
+func (failWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+func TestWriteErrorsPropagate(t *testing.T) {
+	h := newFakeHome(t)
+	h.setAccount("a", 1)
+	err := run([]string{"--home", h.home, "capture", "a"}, failWriter{})
+	if err == nil || !strings.Contains(err.Error(), "disk full") {
 		t.Fatalf("got %v", err)
 	}
 }

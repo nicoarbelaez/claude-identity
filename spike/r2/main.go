@@ -70,7 +70,28 @@ func main() {
 	}
 }
 
-func run(args []string, out io.Writer) error {
+// errWriter remembers the first write error so output helpers need no checks.
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func say(e *errWriter, format string, a ...any) {
+	if e.err != nil {
+		return
+	}
+	_, e.err = fmt.Fprintf(e.w, format, a...)
+}
+
+func run(args []string, w io.Writer) error {
+	out := &errWriter{w: w}
+	if err := runCmd(args, out); err != nil {
+		return err
+	}
+	return out.err
+}
+
+func runCmd(args []string, out *errWriter) error {
 	fs := flag.NewFlagSet("r2", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	home := fs.String("home", "", "override home directory (used by tests)")
@@ -81,7 +102,7 @@ func run(args []string, out io.Writer) error {
 	if len(rest) == 0 {
 		return errors.New("usage: r2 [--home dir] backup|capture <name>|swap <name>|watch [seconds]|restore <backup-dir>|status")
 	}
-	if goos == "darwin" {
+	if goos == "darwin" && *home == "" {
 		return errors.New("not supported in spike on macOS (credentials live in the Keychain)")
 	}
 	p, err := resolvePaths(*home)
@@ -143,7 +164,7 @@ func resolvePaths(home string) (paths, error) {
 
 // ---- commands ----
 
-func cmdBackup(p paths, out io.Writer) error {
+func cmdBackup(p paths, out *errWriter) error {
 	dir := filepath.Join(p.spike, "backups", time.Now().Format("20060102-150405.000"))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -151,7 +172,7 @@ func cmdBackup(p paths, out io.Writer) error {
 	for src, name := range map[string]string{p.creds: "credentials.json", p.claudeJSN: "claude.json"} {
 		b, err := os.ReadFile(src)
 		if errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintf(out, "skipped (missing): %s\n", filepath.Base(src))
+			say(out, "skipped (missing): %s\n", filepath.Base(src))
 			continue
 		}
 		if err != nil {
@@ -161,11 +182,11 @@ func cmdBackup(p paths, out io.Writer) error {
 			return err
 		}
 	}
-	fmt.Fprintf(out, "backup: %s\n", dir)
+	say(out, "backup: %s\n", dir)
 	return nil
 }
 
-func cmdRestore(p paths, dir string, out io.Writer) error {
+func cmdRestore(p paths, dir string, out *errWriter) error {
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		return fmt.Errorf("backup dir %q not found", dir)
 	}
@@ -182,7 +203,7 @@ func cmdRestore(p paths, dir string, out io.Writer) error {
 			return err
 		}
 		restored++
-		fmt.Fprintf(out, "restored: %s\n", filepath.Base(dst))
+		say(out, "restored: %s\n", filepath.Base(dst))
 	}
 	if restored == 0 {
 		return errors.New("backup dir contained no files to restore")
@@ -190,7 +211,7 @@ func cmdRestore(p paths, dir string, out io.Writer) error {
 	return nil
 }
 
-func cmdCapture(p paths, name string, out io.Writer) error {
+func cmdCapture(p paths, name string, out *errWriter) error {
 	creds, err := readObj(p.creds)
 	if err != nil {
 		return err
@@ -214,11 +235,11 @@ func cmdCapture(p paths, name string, out io.Writer) error {
 	if err := writeAtomic(profilePath(p, name), b); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "captured %q: account=%s expires=%s\n", name, accountLabel(acct), expiry(oa))
+	say(out, "captured %q: account=%s expires=%s\n", name, accountLabel(acct), expiry(oa))
 	return nil
 }
 
-func cmdSwap(p paths, name string, out io.Writer) error {
+func cmdSwap(p paths, name string, out *errWriter) error {
 	pr, err := loadProfile(p, name)
 	if err != nil {
 		return err
@@ -244,19 +265,19 @@ func cmdSwap(p paths, name string, out io.Writer) error {
 	if err := writeAtomic(filepath.Join(p.spike, "last-swap.json"), b); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "swapped to %q: account=%s expires=%s\n", name, accountLabel(pr.OauthAccount), expiry(pr.ClaudeAiOauth))
+	say(out, "swapped to %q: account=%s expires=%s\n", name, accountLabel(pr.OauthAccount), expiry(pr.ClaudeAiOauth))
 	return nil
 }
 
-func cmdStatus(p paths, out io.Writer) error {
+func cmdStatus(p paths, out *errWriter) error {
 	cj, err := readObj(p.claudeJSN)
 	if err != nil {
 		return err
 	}
 	creds, _ := readObj(p.creds)
 	acct := cj[keyAccount]
-	fmt.Fprintf(out, "current account: %s\n", accountLabel(acct))
-	fmt.Fprintf(out, "current token expiry: %s\n", expiry(creds[keyOAuth]))
+	say(out, "current account: %s\n", accountLabel(acct))
+	say(out, "current token expiry: %s\n", expiry(creds[keyOAuth]))
 	matched := false
 	ents, _ := os.ReadDir(filepath.Join(p.spike, "profiles"))
 	for _, e := range ents {
@@ -266,17 +287,17 @@ func cmdStatus(p paths, out io.Writer) error {
 			continue
 		}
 		if email(pr.OauthAccount) != "" && email(pr.OauthAccount) == email(acct) {
-			fmt.Fprintf(out, "matches profile: %s\n", n)
+			say(out, "matches profile: %s\n", n)
 			matched = true
 		}
 	}
 	if !matched {
-		fmt.Fprintln(out, "matches profile: (none)")
+		say(out, "matches profile: (none)\n")
 	}
 	return nil
 }
 
-func cmdWatch(p paths, secs int, out io.Writer) error {
+func cmdWatch(p paths, secs int, out *errWriter) error {
 	var ls lastSwap
 	b, err := os.ReadFile(filepath.Join(p.spike, "last-swap.json"))
 	if err != nil {
@@ -286,7 +307,7 @@ func cmdWatch(p paths, secs int, out io.Writer) error {
 		return err
 	}
 	pr, _ := loadProfile(p, ls.Profile)
-	fmt.Fprintf(out, "watching for %ds; baseline = profile %q\n", secs, ls.Profile)
+	say(out, "watching for %ds; baseline = profile %q\n", secs, ls.Profile)
 	lastC, lastJ := ls.CredsSHA, ls.ClaudeSHA
 	detected := false
 	deadline := time.Now().Add(time.Duration(secs) * time.Second)
@@ -298,7 +319,7 @@ func cmdWatch(p paths, secs int, out io.Writer) error {
 		}
 		detected = true
 		lastC, lastJ = c, j
-		fmt.Fprintf(out, "WRITE-BACK detected at %s (credentials changed=%t, claude.json changed=%t vs last swap)\n",
+		say(out, "WRITE-BACK detected at %s (credentials changed=%t, claude.json changed=%t vs last swap)\n",
 			time.Now().Format("15:04:05"), c != ls.CredsSHA, j != ls.ClaudeSHA)
 		creds, _ := readObj(p.creds)
 		cj, _ := readObj(p.claudeJSN)
@@ -306,17 +327,17 @@ func cmdWatch(p paths, secs int, out io.Writer) error {
 		reportKey(out, keyAccount, cj[keyAccount], pr.OauthAccount, "account="+accountLabel(cj[keyAccount]))
 	}
 	if !detected {
-		fmt.Fprintln(out, "no write-back detected")
+		say(out, "no write-back detected\n")
 	}
 	return nil
 }
 
-func reportKey(out io.Writer, key string, now, want json.RawMessage, detail string) {
+func reportKey(out *errWriter, key string, now, want json.RawMessage, detail string) {
 	if sameJSON(now, want) {
-		fmt.Fprintf(out, "  %s: unchanged vs profile (%s)\n", key, detail)
+		say(out, "  %s: unchanged vs profile (%s)\n", key, detail)
 		return
 	}
-	fmt.Fprintf(out, "  %s: DIFFERS from swapped profile (%s)\n", key, detail)
+	say(out, "  %s: DIFFERS from swapped profile (%s)\n", key, detail)
 }
 
 // ---- helpers ----
