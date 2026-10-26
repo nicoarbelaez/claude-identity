@@ -6,10 +6,20 @@ import (
 	"io"
 	"regexp"
 	"strings"
+
+	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 )
 
 // maxHookInput caps how much of the hook payload is read from stdin.
 const maxHookInput = 64 << 10
+
+// maxHookContext keeps additionalContext under the documented 10,000-character cap.
+const maxHookContext = 9000
+
+const (
+	hookFailed   = "cid was already run for this command by the account-switch hook and failed. Do not run cid again. Output:\n"
+	hookRejected = "The account-switch hook rejected the arguments, so cid was not run. Do not run cid."
+)
 
 // hookToken is what `/account` arguments may contain: a profile name or index.
 var hookToken = regexp.MustCompile(`^[A-Za-z0-9._-]{1,32}$`)
@@ -45,18 +55,18 @@ func (a *app) hook() int {
 		return exitOK
 	}
 
-	// Invalid tokens and failing runs pass through, so the skill runs and the
-	// model can explain the error to the user.
+	// cid has already run (or was refused) here, so failures are handed to the
+	// model as context; the skill body never runs cid again.
 	args := strings.Fields(in.CommandArgs)
 	if !validHookArgs(args) {
-		return exitOK
+		return a.context(hookRejected)
 	}
 
 	var out, errOut bytes.Buffer
 	d := a.Deps
 	d.Stdout, d.Stderr = &out, &errOut
 	if Run(d, args) != exitOK {
-		return exitOK
+		return a.context(hookFailed + out.String() + errOut.String())
 	}
 	return a.block(out.String())
 }
@@ -75,10 +85,35 @@ func validHookArgs(args []string) bool {
 
 // block prints the decision that shows text to the user without a model turn.
 func (a *app) block(text string) int {
-	b, err := json.Marshal(hookBlock{Decision: "block", Reason: strings.TrimRight(text, "\n")})
+	text = strings.TrimRight(text, "\n")
+	if text == "" {
+		text = a.t(i18n.HookDone)
+	}
+	b, err := json.Marshal(hookBlock{Decision: "block", Reason: text})
 	if err != nil {
 		return a.fail(err, "")
 	}
 	a.printf(a.Stdout, "%s\n", b)
 	return exitOK
+}
+
+// context adds text to the model context without blocking the prompt.
+func (a *app) context(text string) int {
+	b, err := json.Marshal(map[string]any{"hookSpecificOutput": map[string]string{
+		"hookEventName":     "UserPromptExpansion",
+		"additionalContext": hookContext(text),
+	}})
+	if err != nil {
+		return a.fail(err, "")
+	}
+	a.printf(a.Stdout, "%s\n", b)
+	return exitOK
+}
+
+// hookContext truncates s to maxHookContext bytes without splitting a rune.
+func hookContext(s string) string {
+	if len(s) <= maxHookContext {
+		return s
+	}
+	return strings.ToValidUTF8(s[:maxHookContext], "")
 }
