@@ -190,6 +190,66 @@ func (s *Service) checkAdd(name, email string, force bool) (replaced bool, err e
 	return true, nil
 }
 
+// EmailMismatchError means a relogin produced a different account than the
+// profile holds, so nothing was saved.
+type EmailMismatchError struct{ Name, Want, Got string }
+
+func (e *EmailMismatchError) Error() string {
+	return fmt.Sprintf("profile %q holds %s but the login is for %s", e.Name, e.Want, e.Got)
+}
+
+// ReloginResult describes a completed Relogin.
+type ReloginResult struct {
+	Profile profile.Profile
+	// LiveUpdated is true when the profile was the active one and the fresh
+	// credentials were also written to the live Claude Code store.
+	LiveUpdated bool
+}
+
+// Relogin replaces the saved credentials of the profile identified by arg
+// (index or name) with the login held by src. It refuses when src holds a
+// different account than the profile. When the profile is the active one, the
+// fresh credentials are also written to the live store so the running Claude
+// Code session uses them.
+func (s *Service) Relogin(arg string, src Source) (ReloginResult, error) {
+	var res ReloginResult
+	err := s.WithLock(func() error {
+		p, err := s.Profiles.Resolve(arg)
+		if err != nil {
+			return err
+		}
+		b, err := src.Read()
+		if err != nil {
+			return err
+		}
+		if b.Email() == "" {
+			return ErrUnknownLiveAccount
+		}
+		if p.Email != "" && !strings.EqualFold(p.Email, b.Email()) {
+			return &EmailMismatchError{Name: p.Name, Want: p.Email, Got: b.Email()}
+		}
+		// Fail closed: only "no active profile" lets the relogin proceed.
+		active, aerr := s.active()
+		if aerr != nil && !errors.Is(aerr, profile.ErrNoActive) {
+			return aerr
+		}
+		if res.Profile, err = s.captureLive(p.Name, b); err != nil {
+			return err
+		}
+		if aerr == nil && active.Name == p.Name {
+			if err := s.Live.Write(b); err != nil {
+				return err
+			}
+			if err := s.verify(b); err != nil {
+				return err
+			}
+			res.LiveUpdated = true
+		}
+		return nil
+	})
+	return res, err
+}
+
 // Remove deletes the profile identified by arg (index or name) together with
 // its vault entry. It refuses to remove the active profile.
 func (s *Service) Remove(arg string) (profile.Profile, error) {

@@ -40,6 +40,7 @@ type Swapper interface {
 	Switch(arg string) (swap.Result, error)
 	Add(name string, force bool) (swap.AddResult, error)
 	AddFrom(name string, src swap.Source, force bool) (swap.AddResult, error)
+	Relogin(arg string, src swap.Source) (swap.ReloginResult, error)
 	Remove(arg string) (profile.Profile, error)
 	Status(name string, active bool) credentials.Status
 }
@@ -240,10 +241,12 @@ func (a *app) current(args []string) int {
 	return exitOK
 }
 
-// relogin prints the manual steps to refresh a profile's login. It never
-// touches credentials.
+// relogin refreshes a profile's login by running Claude Code's login in an
+// isolated config dir for the profile's account. If the login cannot run, it
+// prints the manual steps instead.
 func (a *app) relogin(args []string) int {
-	_, pos, ok := parse("relogin", args, false, 1)
+	flags, rest := extractFlags(args, "console", "sso")
+	_, pos, ok := parse("relogin", rest, false, 1)
 	if !ok {
 		return a.usageError("")
 	}
@@ -255,8 +258,18 @@ func (a *app) relogin(args []string) int {
 	if who == "" {
 		who = p.Name
 	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ReloginSteps, who, p.Name))
-	return exitOK
+	opts := login.Options{Console: flags["console"], SSO: flags["sso"], Email: p.Email}
+	return a.withIsolatedLogin(opts, a.t(i18n.ReloginSteps, who, p.Name), func(src swap.Source) int {
+		res, err := a.Swap.Relogin(p.Name, src)
+		if err != nil {
+			return a.fail(err, p.Name)
+		}
+		a.printf(a.Stdout, "%s\n", a.t(i18n.ReloginDone, res.Profile.Name))
+		if res.LiveUpdated {
+			a.printf(a.Stdout, "%s\n", a.t(i18n.ReloginLiveUpdated))
+		}
+		return exitOK
+	})
 }
 
 func (a *app) switchTo(args []string) int {
@@ -377,7 +390,10 @@ func (a *app) fail(err error, arg string) int {
 	var msg string
 	var exists *swap.ProfileExistsError
 	var dup *swap.DuplicateAccountError
+	var mismatch *swap.EmailMismatchError
 	switch {
+	case errors.As(err, &mismatch):
+		msg = a.t(i18n.ReloginEmailMismatch, mismatch.Got, mismatch.Name, mismatch.Want, mismatch.Name)
 	case errors.As(err, &exists):
 		msg = a.t(i18n.ProfileExists, exists.Name, exists.Email)
 	case errors.As(err, &dup):

@@ -425,25 +425,6 @@ func TestListStatusFollowsLiveAndVault(t *testing.T) {
 	}
 }
 
-func TestRelogin(t *testing.T) {
-	r := newRig(t)
-	r.twoProfiles()
-	for _, ref := range []string{"a", "1"} {
-		if code := r.run("relogin", ref); code != 0 {
-			t.Fatalf("%s: exit %d: %s", ref, code, r.stderr)
-		}
-		if want := r.msg(i18n.ReloginSteps, "a@example.com", "a"); !strings.Contains(r.stdout.String(), want) {
-			t.Errorf("%s: stdout = %q, want %q", ref, r.stdout, want)
-		}
-	}
-	if code := r.run("relogin", "nope"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.UnknownProfile, "nope")) {
-		t.Errorf("unknown: exit %d, stderr %q", code, r.stderr)
-	}
-	if code := r.run("relogin"); code != 2 {
-		t.Errorf("missing arg: exit %d, want 2", code)
-	}
-}
-
 func TestConfig(t *testing.T) {
 	r := newRig(t)
 	r.deps.Config.ProfilesPath = "/p/profiles.json"
@@ -497,6 +478,9 @@ func (f fakeSwap) Switch(string) (swap.Result, error)       { return f.switchRes
 func (f fakeSwap) Add(string, bool) (swap.AddResult, error) { return swap.AddResult{}, f.err }
 func (f fakeSwap) AddFrom(string, swap.Source, bool) (swap.AddResult, error) {
 	return swap.AddResult{}, f.err
+}
+func (f fakeSwap) Relogin(string, swap.Source) (swap.ReloginResult, error) {
+	return swap.ReloginResult{}, f.err
 }
 func (f fakeSwap) Remove(string) (profile.Profile, error) { return profile.Profile{}, f.err }
 func (f fakeSwap) Status(string, bool) credentials.Status { return credentials.StatusUnknown }
