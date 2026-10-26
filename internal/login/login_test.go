@@ -1,6 +1,7 @@
 package login
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 )
@@ -83,5 +85,84 @@ func TestPathsInMatchesClaudeCodeLayout(t *testing.T) {
 	got := claudecfg.PathsIn(dir)
 	if got.Credentials != filepath.Join(dir, ".credentials.json") || got.ClaudeJSON != filepath.Join(dir, ".claude.json") {
 		t.Fatalf("PathsIn = %+v", got)
+	}
+}
+
+// helperEnv switches the test binary into a fake `claude` (see TestMain).
+const helperEnv = "CID_LOGIN_TEST_HELPER"
+
+// TestMain lets the test binary stand in for `claude`: ExecRunner re-executes
+// it with helperEnv set, so no real claude is ever invoked.
+func TestMain(m *testing.M) {
+	switch os.Getenv(helperEnv) {
+	case "":
+		os.Exit(m.Run())
+	case "ok":
+		os.Exit(0)
+	case "fail":
+		os.Exit(3)
+	case "hang":
+		time.Sleep(time.Minute)
+		os.Exit(0)
+	case "env":
+		os.Stdout.WriteString("dir=" + os.Getenv("CLAUDE_CONFIG_DIR") + " args=" + strings.Join(os.Args[1:], ","))
+		os.Exit(0)
+	}
+	os.Exit(4)
+}
+
+// fakeClaude returns an ExecRunner whose "claude" is this test binary.
+func fakeClaude(t *testing.T, mode string, out *bytes.Buffer) ExecRunner {
+	t.Helper()
+	t.Setenv(helperEnv, mode)
+	return ExecRunner{command: os.Args[0], Stdin: strings.NewReader(""), Stdout: out, Stderr: out}
+}
+
+func TestExecRunnerPassesArgsAndConfigDir(t *testing.T) {
+	var out bytes.Buffer
+	r := fakeClaude(t, "env", &out)
+	if err := r.Login(context.Background(), "/cfg/x", Options{SSO: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out.String(), "dir=/cfg/x args=auth,login,--sso"; got != want {
+		t.Fatalf("helper saw %q, want %q", got, want)
+	}
+}
+
+func TestExecRunnerReturnsErrorOnNonZeroExit(t *testing.T) {
+	var out bytes.Buffer
+	err := fakeClaude(t, "fail", &out).Login(context.Background(), t.TempDir(), Options{})
+	if err == nil || errors.Is(err, ErrNotInstalled) || errors.Is(err, ErrTimeout) {
+		t.Fatalf("err = %v, want a plain exit error", err)
+	}
+}
+
+func TestExecRunnerTimesOut(t *testing.T) {
+	var out bytes.Buffer
+	r := fakeClaude(t, "hang", &out)
+	r.Timeout = 200 * time.Millisecond
+	start := time.Now()
+	err := r.Login(context.Background(), t.TempDir(), Options{})
+	if !errors.Is(err, ErrTimeout) {
+		t.Fatalf("err = %v, want ErrTimeout", err)
+	}
+	if time.Since(start) > 30*time.Second {
+		t.Error("the hung login was not killed at the deadline")
+	}
+}
+
+func TestExecRunnerCancelIsNotATimeout(t *testing.T) {
+	var out bytes.Buffer
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(200 * time.Millisecond); cancel() }()
+	err := fakeClaude(t, "hang", &out).Login(ctx, t.TempDir(), Options{})
+	if err == nil || errors.Is(err, ErrTimeout) {
+		t.Fatalf("err = %v, want a cancellation error that is not ErrTimeout", err)
+	}
+}
+
+func TestDefaultTimeoutIsTenMinutes(t *testing.T) {
+	if DefaultTimeout != 10*time.Minute {
+		t.Fatalf("DefaultTimeout = %v", DefaultTimeout)
 	}
 }

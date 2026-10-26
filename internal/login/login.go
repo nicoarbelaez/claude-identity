@@ -11,10 +11,19 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // ErrNotInstalled means the `claude` executable was not found on PATH.
 var ErrNotInstalled = errors.New("the `claude` command was not found on PATH")
+
+// ErrTimeout means the login did not finish before the deadline.
+var ErrTimeout = errors.New("the login timed out")
+
+// DefaultTimeout is how long ExecRunner waits for the interactive browser login
+// before killing `claude`. It is generous because the user must finish the
+// sign-in in a browser, but bounded so a forgotten login cannot hang cid.
+const DefaultTimeout = 10 * time.Minute
 
 // Options selects how `claude auth login` is run.
 type Options struct {
@@ -62,15 +71,30 @@ func Env(base []string, configDir string) []string {
 type ExecRunner struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
+	// Timeout bounds the login; zero means DefaultTimeout.
+	Timeout time.Duration
+	// command overrides the executable name ("claude"); tests only.
+	command string
 }
 
 // Login runs `claude auth login` with CLAUDE_CONFIG_DIR=configDir and waits
-// for it. It returns ErrNotInstalled (wrapped) when `claude` is not on PATH.
+// for it. It returns ErrNotInstalled (wrapped) when `claude` is not on PATH and
+// ErrTimeout (wrapped) when the login outlives the timeout.
 func (r ExecRunner) Login(ctx context.Context, configDir string, opts Options) error {
-	path, err := exec.LookPath("claude")
+	name := r.command
+	if name == "" {
+		name = "claude"
+	}
+	path, err := exec.LookPath(name)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrNotInstalled, err)
 	}
+	timeout := r.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, path, Args(opts)...)
 	cmd.Env = Env(os.Environ(), configDir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = r.Stdin, r.Stdout, r.Stderr
@@ -84,6 +108,9 @@ func (r ExecRunner) Login(ctx context.Context, configDir string, opts Options) e
 		cmd.Stderr = os.Stderr
 	}
 	if err := cmd.Run(); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("claude auth login: %w after %s", ErrTimeout, timeout)
+		}
 		return fmt.Errorf("claude auth login: %w", err)
 	}
 	return nil
