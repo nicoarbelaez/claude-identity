@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/nicoarbelaez/claude-identity/compare/v0.3.0...v0.3.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **credentials:** reportar estado desconocido para credenciales vacías o null ([#21](https://github.com/nicoarbelaez/claude-identity/issues/21)) ([f095d9e](https://github.com/nicoarbelaez/claude-identity/commit/f095d9e45b08153d5bc82dad5176c3e3173f9bd6))
+
 ## [0.3.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.2.0...v0.3.0) (2026-10-26)
 
 
