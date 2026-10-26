@@ -23,10 +23,10 @@ Out: any terminal UI, Claude Code menu or keyboard shortcut. `--json` is the sta
 ## Checklist
 | ID | Status | Task | Route | Commit |
 |----|--------|------|-------|--------|
-| C1 | [ ] | Settings registry (`language`) validated against an embedded JSON Schema, with a registry/schema sync test | bounded writer | |
-| C2 | [ ] | Resilient storage: shared atomic write with `.bak`, recovery helper, schema-validated `profiles.json` and `config.json`, recovery warnings | bounded writer | |
-| C3 | [ ] | CLI: `cid config`, `get`, `set`, `unset`, `--json`; wiring in `main.go`; uninstall removes the new files | bounded writer | |
-| C4 | [ ] | Docs: README "Configuration" and usage table, SKILL.md hint, help text | bounded writer | |
+| C1 | [x] | Settings registry (`language`) validated against an embedded JSON Schema, with a registry/schema sync test | bounded writer | 22347ab |
+| C2 | [x] | Resilient storage: shared atomic write with `.bak`, recovery helper, schema-validated `profiles.json` and `config.json`, recovery warnings | bounded writer | 9f67778, 55bd7da |
+| C3 | [x] | CLI: `cid config`, `get`, `set`, `unset`, `--json`; wiring in `main.go`; uninstall removes the new files | bounded writer | 96708c8 |
+| C4 | [x] | Docs: README "Configuration" and usage table, SKILL.md hint, help text | bounded writer | 6080a91 |
 
 ## Acceptance criteria
 - `cid config set language es` persists to `config.json`; `cid config get language` prints `es`; `cid config unset language` restores the default. Precedence is env (`CID_LANG`) > file > default.
@@ -39,4 +39,4 @@ Out: any terminal UI, Claude Code menu or keyboard shortcut. `--json` is the sta
 `go build ./...` (also GOOS=linux and darwin), `go vet ./...`, `go test ./...`, `gofmt -l .`, golangci-lint, `go mod tidy` and `go mod verify`. Test-first: each task starts with failing tests (RED) before the implementation.
 
 ## Progress
-Started.
+All tasks done. Library: github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 (Apache-2.0, released 2026-08-06, last push 2026-10-18). Uninstall also removes config.json, .bak and .corrupt-* files.
