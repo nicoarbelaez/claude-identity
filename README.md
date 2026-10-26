@@ -75,7 +75,7 @@ Log in to Claude Code with the account you want to save, then:
 |---------|--------------|
 | `cid` / `cid list [--json]` | List profiles (index, name, email); the active one is marked with `*`. |
 | `cid <n\|name>` / `cid switch <n\|name>` | Hot-swap to a profile. Remote Control sessions disconnect after a swap. |
-| `cid add <name>` | Save the current Claude Code login as a profile and mark it active. Re-run it to refresh a profile. |
+| `cid add <name> [--force]` | Save the current Claude Code login as a profile and mark it active. Re-run it to refresh a profile. It refuses to replace a profile that holds a different account unless you pass `--force`, and never saves an account that is already stored under another name. |
 | `cid remove <n\|name>` | Remove a profile and its keyring entry. The active profile cannot be removed. |
 | `cid current [--json]` | Show the active profile. |
 | `cid config` | Show the profiles file, the Claude config directory, the credential backend and the language. |
