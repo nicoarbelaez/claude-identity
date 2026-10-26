@@ -47,15 +47,19 @@ func ResolvePaths(home string) Paths {
 }
 
 // Open picks the store for the platform: on macOS the Keychain when its item
-// exists, otherwise the credentials file; everywhere else the file.
-func Open(goos string, run Runner, p Paths) Store {
-	file := NewFileStore(p)
+// exists, the credentials file when it is definitively absent, and an error
+// when the probe cannot tell (no silent fallback); elsewhere the file.
+func Open(goos string, run Runner, p Paths) (Store, error) {
 	if goos != "darwin" {
-		return file
+		return NewFileStore(p), nil
 	}
 	kc := NewKeychainStore(run, p)
-	if kc.Exists() {
-		return kc
+	ok, err := kc.Exists()
+	if err != nil {
+		return nil, err
 	}
-	return file
+	if ok {
+		return kc, nil
+	}
+	return NewFileStore(p), nil
 }

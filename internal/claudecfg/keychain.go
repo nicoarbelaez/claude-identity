@@ -22,6 +22,9 @@ var (
 	acctRE          = regexp.MustCompile(`"acct"<blob>="([^"]*)"`)
 )
 
+// ErrKeychainItemNotFound means the Keychain item does not exist.
+var ErrKeychainItemNotFound = errors.New("keychain item not found")
+
 // Runner executes an external command and returns its stdout.
 // Implementations must not put stdout/stderr or arguments in errors.
 type Runner interface {
@@ -37,9 +40,20 @@ func (ExecRunner) Run(name string, args ...string) ([]byte, error) {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, name, args...).Output()
 	if err != nil {
-		return nil, errKeychain
+		return nil, classify(err)
 	}
 	return out, nil
+}
+
+// classify maps a command failure to a payload-free sentinel. `security`
+// exits 44 (errSecItemNotFound) when the item is absent; anything else
+// (timeout, locked, denied) is a generic keychain failure.
+func classify(err error) error {
+	var ec interface{ ExitCode() int }
+	if errors.As(err, &ec) && ec.ExitCode() == 44 {
+		return ErrKeychainItemNotFound
+	}
+	return errKeychain
 }
 
 // KeychainStore keeps the OAuth block in the macOS Keychain item that Claude
@@ -58,10 +72,14 @@ func NewKeychainStore(run Runner, p Paths) *KeychainStore {
 	return &KeychainStore{run: run, paths: p}
 }
 
-// Exists reports whether the Keychain item is present.
-func (k *KeychainStore) Exists() bool {
+// Exists reports whether the Keychain item is present. A probe that cannot
+// answer (locked, denied, timeout) returns an error, never "absent".
+func (k *KeychainStore) Exists() (bool, error) {
 	_, err := k.run.Run(securityBin, "find-generic-password", "-s", keychainService)
-	return err == nil
+	if errors.Is(err, ErrKeychainItemNotFound) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // Read returns the Keychain OAuth block and the .claude.json account block.

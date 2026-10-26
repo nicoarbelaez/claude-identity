@@ -219,6 +219,7 @@ type fakeRunner struct {
 	acct    string
 	calls   [][]string
 	failAdd bool
+	failAll error // when set, every find-generic-password fails with it
 }
 
 func (f *fakeRunner) Run(name string, args ...string) ([]byte, error) {
@@ -228,8 +229,11 @@ func (f *fakeRunner) Run(name string, args ...string) ([]byte, error) {
 	}
 	switch args[0] {
 	case "find-generic-password":
+		if f.failAll != nil {
+			return nil, f.failAll
+		}
 		if f.item == "" {
-			return nil, errors.New("exit status 44")
+			return nil, ErrKeychainItemNotFound
 		}
 		for _, a := range args {
 			if a == "-w" {
@@ -361,11 +365,39 @@ func TestOpenSelection(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Open(tt.goos, tt.run, p)
+			got, err := Open(tt.goos, tt.run, p)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if name := typeName(got); name != tt.wantType {
 				t.Fatalf("got %s, want %s", name, tt.wantType)
 			}
 		})
+	}
+}
+
+func TestOpenFailsClosedOnProbeError(t *testing.T) {
+	p := ResolvePaths(t.TempDir())
+	got, err := Open("darwin", &fakeRunner{failAll: errKeychain}, p)
+	if !errors.Is(err, errKeychain) || got != nil {
+		t.Fatalf("want errKeychain and nil store, got %v, %v", got, err)
+	}
+}
+
+type exitErr int
+
+func (e exitErr) Error() string { return "exit" }
+func (e exitErr) ExitCode() int { return int(e) }
+
+func TestClassifyExitCodes(t *testing.T) {
+	if err := classify(exitErr(44)); !errors.Is(err, ErrKeychainItemNotFound) {
+		t.Errorf("44 -> %v", err)
+	}
+	if err := classify(exitErr(36)); !errors.Is(err, errKeychain) {
+		t.Errorf("36 -> %v", err)
+	}
+	if err := classify(errors.New("timeout")); !errors.Is(err, errKeychain) {
+		t.Errorf("generic -> %v", err)
 	}
 }
 
