@@ -48,7 +48,9 @@ type Swapper interface {
 // Config describes where cid and Claude Code keep their data (for `cid config`).
 type Config struct {
 	ProfilesPath string
-	ClaudeDir    string
+	// ConfigPath is the config.json settings file.
+	ConfigPath string
+	ClaudeDir  string
 	// Keychain is true when Claude Code credentials live in the macOS Keychain.
 	Keychain bool
 }

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cid profiles.json",
+  "type": "object",
+  "properties": {
+    "profiles": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["name", "index"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$" },
+          "index": { "type": "integer", "minimum": 1 },
+          "email": { "type": "string" },
+          "added_at": { "type": "string" }
+        }
+      }
+    },
+    "active": { "type": "string" }
+  }
+}
