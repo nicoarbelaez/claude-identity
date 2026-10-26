@@ -152,8 +152,11 @@ func TestAddCapturesLiveLoginAndActivates(t *testing.T) {
 
 func TestAddErrors(t *testing.T) {
 	r := newRig(t)
-	if code := r.run("add"); code != 2 || !strings.Contains(r.stderr.String(), r.msg(i18n.Usage)) {
+	if code := r.run("add"); code != 2 || !strings.Contains(r.stderr.String(), r.msg(i18n.MissingName)) || !strings.Contains(r.stderr.String(), r.msg(i18n.Usage)) {
 		t.Errorf("missing name: exit %d, stderr %q", code, r.stderr)
+	}
+	if code := r.run("add", "--force"); code != 2 || !strings.Contains(r.stderr.String(), r.msg(i18n.MissingName)) {
+		t.Errorf("only --force: exit %d, stderr %q", code, r.stderr)
 	}
 	if code := r.run("add", "a"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.NoLiveLogin)) {
 		t.Errorf("no live login: exit %d, stderr %q", code, r.stderr)
@@ -161,6 +164,69 @@ func TestAddErrors(t *testing.T) {
 	r.login("a@example.com", "tok-a")
 	if code := r.run("add", "Bad Name"); code != 1 || !strings.Contains(r.stderr.String(), r.msg(i18n.InvalidName)) {
 		t.Errorf("invalid name: exit %d, stderr %q", code, r.stderr)
+	}
+}
+
+func TestAddSameAccountRefreshesSilently(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	r.login("a@example.com", "tok-a2")
+	if code := r.run("add", "a"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if !strings.Contains(r.stdout.String(), r.msg(i18n.ProfileAdded, "a")) {
+		t.Errorf("stdout = %q", r.stdout)
+	}
+}
+
+func TestAddBlocksOverwriteOfOtherAccount(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles() // a, b saved; b live
+	r.login("c@example.com", "tok-c")
+	if code := r.run("add", "a"); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if want := r.msg(i18n.ProfileExists, "a", "a@example.com"); !strings.Contains(r.stderr.String(), want) {
+		t.Errorf("stderr = %q, want %q", r.stderr, want)
+	}
+	if strings.Contains(r.stderr.String()+r.stdout.String(), "tok-") {
+		t.Error("output leaks token data")
+	}
+	if p, _ := r.prof.Resolve("a"); p.Email != "a@example.com" {
+		t.Errorf("profile a email = %q", p.Email)
+	}
+}
+
+func TestAddForceReplaces(t *testing.T) {
+	for _, args := range [][]string{{"add", "a", "--force"}, {"add", "--force", "a"}} {
+		r := newRig(t)
+		r.twoProfiles()
+		r.login("c@example.com", "tok-c")
+		if code := r.run(args...); code != 0 {
+			t.Fatalf("%v: exit %d: %s", args, code, r.stderr)
+		}
+		if !strings.Contains(r.stdout.String(), r.msg(i18n.ProfileReplaced, "a")) {
+			t.Errorf("%v: stdout = %q", args, r.stdout)
+		}
+		if p, _ := r.prof.Resolve("a"); p.Email != "c@example.com" {
+			t.Errorf("%v: profile a email = %q", args, p.Email)
+		}
+	}
+}
+
+func TestAddBlocksDuplicateAccount(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles() // b live and saved as b
+	for _, args := range [][]string{{"add", "luna"}, {"add", "luna", "--force"}} {
+		if code := r.run(args...); code != 1 {
+			t.Fatalf("%v: exit %d, want 1", args, code)
+		}
+		if want := r.msg(i18n.AccountSaved, "b"); !strings.Contains(r.stderr.String(), want) {
+			t.Errorf("%v: stderr = %q, want %q", args, r.stderr, want)
+		}
+	}
+	if ps, _ := r.prof.List(); len(ps) != 2 {
+		t.Errorf("profiles = %d, want 2", len(ps))
 	}
 }
 

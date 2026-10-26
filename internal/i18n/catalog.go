@@ -8,7 +8,11 @@ type Key string
 // Message keys used by the CLI.
 const (
 	ProfileAdded       Key = "profile.added"
+	ProfileReplaced    Key = "profile.replaced"
 	ProfileRemoved     Key = "profile.removed"
+	ProfileExists      Key = "error.profile_exists"
+	AccountSaved       Key = "error.account_already_saved"
+	MissingName        Key = "error.missing_name"
 	ProfileListHeader  Key = "profile.list_header"
 	SwitchedFromTo     Key = "switch.from_to"
 	SwitchedTo         Key = "switch.to"
@@ -41,6 +45,10 @@ const (
 var catalogEN = map[Key]string{
 	ProfileAdded:       "Profile %q added.",
 	ProfileRemoved:     "Profile %q removed.",
+	ProfileReplaced:    "Profile %q replaced.",
+	ProfileExists:      "Profile %q already holds %s; use --force to replace it.",
+	AccountSaved:       "This account is already saved as %q.",
+	MissingName:        "Missing profile name.",
 	ProfileListHeader:  "Profiles:",
 	SwitchedFromTo:     "Switched from %q to %q.",
 	SwitchedTo:         "Switched to %q.",
@@ -72,7 +80,7 @@ var catalogEN = map[Key]string{
   cid list [--json]         List profiles
   cid <n|name>              Switch to a profile
   cid switch <n|name>       Switch to a profile
-  cid add <name>            Save the current Claude Code login as a profile
+  cid add <name> [--force]  Save the current Claude Code login as a profile
   cid remove <n|name>       Remove a profile (not the active one)
   cid current [--json]      Show the active profile
   cid config                Show config locations and language
@@ -83,6 +91,10 @@ var catalogEN = map[Key]string{
 var catalogES = map[Key]string{
 	ProfileAdded:       "Perfil %q agregado.",
 	ProfileRemoved:     "Perfil %q eliminado.",
+	ProfileReplaced:    "Perfil %q reemplazado.",
+	ProfileExists:      "El perfil %q ya contiene %s; usa --force para reemplazarlo.",
+	AccountSaved:       "Esta cuenta ya está guardada como %q.",
+	MissingName:        "Falta el nombre del perfil.",
 	ProfileListHeader:  "Perfiles:",
 	SwitchedFromTo:     "Cambio de %q a %q.",
 	SwitchedTo:         "Cambio a %q.",
@@ -114,7 +126,7 @@ var catalogES = map[Key]string{
   cid list [--json]         Lista los perfiles
   cid <n|nombre>            Cambia a un perfil
   cid switch <n|nombre>     Cambia a un perfil
-  cid add <nombre>          Guarda la sesión actual de Claude Code como perfil
+  cid add <nombre> [--force] Guarda la sesión actual de Claude Code como perfil
   cid remove <n|nombre>     Elimina un perfil (no el activo)
   cid current [--json]      Muestra el perfil activo
   cid config                Muestra las rutas de configuración y el idioma

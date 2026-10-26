@@ -235,15 +235,32 @@ func (a *app) doSwitch(arg string) int {
 }
 
 func (a *app) add(args []string) int {
-	_, pos, ok := parse("add", args, false, 1)
+	// --force may follow the name, which the flag package would not parse.
+	force := false
+	rest := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == "--force" || arg == "-force" {
+			force = true
+			continue
+		}
+		rest = append(rest, arg)
+	}
+	if len(rest) == 0 {
+		return a.usageError(a.t(i18n.MissingName))
+	}
+	_, pos, ok := parse("add", rest, false, 1)
 	if !ok {
 		return a.usageError("")
 	}
-	res, err := a.Swap.Add(pos[0], false)
+	res, err := a.Swap.Add(pos[0], force)
 	if err != nil {
 		return a.fail(err, pos[0])
 	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileAdded, res.Profile.Name))
+	msg := i18n.ProfileAdded
+	if res.Replaced {
+		msg = i18n.ProfileReplaced
+	}
+	a.printf(a.Stdout, "%s\n", a.t(msg, res.Profile.Name))
 	return exitOK
 }
 
@@ -313,7 +330,13 @@ func (a *app) writeJSON(v any) int {
 // arg is the profile reference the user typed, when relevant.
 func (a *app) fail(err error, arg string) int {
 	var msg string
+	var exists *swap.ProfileExistsError
+	var dup *swap.DuplicateAccountError
 	switch {
+	case errors.As(err, &exists):
+		msg = a.t(i18n.ProfileExists, exists.Name, exists.Email)
+	case errors.As(err, &dup):
+		msg = a.t(i18n.AccountSaved, dup.Name)
 	case errors.Is(err, profile.ErrNotFound):
 		msg = a.t(i18n.UnknownProfile, arg)
 	case errors.Is(err, profile.ErrInvalidName):
