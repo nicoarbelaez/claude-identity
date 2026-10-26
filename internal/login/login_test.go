@@ -105,7 +105,7 @@ func TestMain(m *testing.M) {
 		time.Sleep(time.Minute)
 		os.Exit(0)
 	case "env":
-		os.Stdout.WriteString("dir=" + os.Getenv("CLAUDE_CONFIG_DIR") + " args=" + strings.Join(os.Args[1:], ","))
+		_, _ = os.Stdout.WriteString("dir=" + os.Getenv("CLAUDE_CONFIG_DIR") + " args=" + strings.Join(os.Args[1:], ","))
 		os.Exit(0)
 	}
 	os.Exit(4)
