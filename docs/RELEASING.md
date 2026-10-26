@@ -9,7 +9,7 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 3. **To cut a release, merge the Release PR.** release-please then creates the tag `vX.Y.Z` and the GitHub Release.
 4. In the same workflow run, the `goreleaser` job checks out that tag, builds six targets (windows/darwin/linux x amd64/arm64), uploads the archives and `checksums.txt` to the existing release (`release.mode: keep-existing` keeps the notes release-please wrote), and attests build provenance for the checksums.
 
-The release and the build share one workflow because tags and releases created with `GITHUB_TOKEN` do not trigger other workflows.
+The release and the build share one workflow so the build runs right after the release is created.
 
 ## Commit types and version bumps
 
@@ -43,12 +43,20 @@ The install scripts always verify the archive SHA-256 against `checksums.txt` an
 gh attestation verify cid_X.Y.Z_linux_amd64.tar.gz --repo nicoarbelaez/claude-identity
 ```
 
-## Known limitation: no CI on the Release PR
+## Release GitHub App
 
-Pull requests opened with `GITHUB_TOKEN` do not trigger other workflows, so the Release PR shows no required checks and cannot satisfy a ruleset that requires them. The repository admin merges it using the ruleset bypass:
+release-please authenticates with a short-lived token from a dedicated GitHub App, minted by [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token). This keeps the repository setting "Allow GitHub Actions to create and approve pull requests" disabled, and because the Release PR is authored by the App, CI runs on it like on any other pull request.
 
-```sh
-gh pr merge <number> --admin --squash
-```
+The App needs only these repository permissions, installed on this repository alone:
 
-Upgrade path: create a free GitHub App, store its ID and private key as secrets, and mint a token with [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token). Pass that token to release-please (`token:` input) so the Release PR is authored by the App and CI runs on it. This is intentionally not implemented yet.
+- Contents: read and write
+- Pull requests: read and write
+
+The workflow reads two values:
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `RELEASE_APP_CLIENT_ID` | Actions variable | The App's Client ID |
+| `RELEASE_APP_PRIVATE_KEY` | Actions secret | A private key generated for the App (`.pem` contents) |
+
+To rotate the key, generate a new private key in the App settings, update the secret with `gh secret set RELEASE_APP_PRIVATE_KEY < key.pem`, delete the old key in the App settings, and delete the local `.pem` file.
