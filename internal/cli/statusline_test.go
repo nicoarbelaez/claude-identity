@@ -588,3 +588,61 @@ func TestCidUninstallRestoresTheStatusLine(t *testing.T) {
 		t.Error("cid config dir or backup left behind")
 	}
 }
+
+// gatedUsage is a usage port whose Record waits for gate to close (or for a
+// timeout) before it returns, to model a slow or locked usage store.
+type gatedUsage struct {
+	UsagePort
+	gate    <-chan struct{}
+	waited  *bool // set to true when Record saw the gate close in time
+	timeout time.Duration
+}
+
+func (g gatedUsage) Record(string, map[string]usage.Window, time.Time) error {
+	select {
+	case <-g.gate:
+		*g.waited = true
+	case <-time.After(g.timeout):
+	}
+	return errors.New("usage store is locked")
+}
+
+func TestStatuslineRunsWrappedCommandWithoutWaitingForRecording(t *testing.T) {
+	r, now := newStatuslineRig(t)
+	started := make(chan struct{})
+	var sawExec bool
+	r.deps.Usage = gatedUsage{gate: started, waited: &sawExec, timeout: 2 * time.Second}
+	r.deps.Statusline.Exec = func(_ []string, _ io.Reader, stdout, _ io.Writer) int {
+		close(started) // the wrapped command is running while Record is still blocked
+		_, _ = io.WriteString(stdout, "line")
+		return 3
+	}
+	if code := r.statusline(rateLimits(now), "--", "node", "x.mjs"); code != 3 {
+		t.Errorf("exit = %d, want the wrapped command's 3", code)
+	}
+	if !sawExec {
+		t.Error("recording ran before (or without) the wrapped command; it must not delay it")
+	}
+	if got := r.stdout.String(); got != "line" {
+		t.Errorf("stdout = %q", got)
+	}
+}
+
+func TestStatuslineDoesNotWaitForeverOnALockedStore(t *testing.T) {
+	r, now := newStatuslineRig(t)
+	old := recordGrace
+	recordGrace = 30 * time.Millisecond
+	defer func() { recordGrace = old }()
+	never := make(chan struct{})
+	var sawExec bool
+	r.deps.Usage = gatedUsage{gate: never, waited: &sawExec, timeout: 3 * time.Second}
+	r.fakeExec("untouched", 0)
+	begin := time.Now()
+	code := r.statusline(rateLimits(now), "--", "node", "x.mjs")
+	if code != 0 || r.stdout.String() != "untouched" {
+		t.Errorf("exit %d, stdout %q: a locked store changed the wrapped command's result", code, r.stdout)
+	}
+	if took := time.Since(begin); took > time.Second {
+		t.Errorf("took %v: the locked store delayed the status line", took)
+	}
+}

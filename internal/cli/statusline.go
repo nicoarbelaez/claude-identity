@@ -25,6 +25,11 @@ import (
 // maxStatuslineInput caps how much of Claude Code's status line JSON is read.
 const maxStatuslineInput = 1 << 20
 
+// recordGrace is how long the process waits, after the wrapped command has
+// finished, for a recording that is still running. Past it the status line
+// exits anyway: the cache write is atomic, so an abandoned one is harmless.
+var recordGrace = 750 * time.Millisecond
+
 // StatuslineDeps are the collaborators of `cid statusline`.
 type StatuslineDeps struct {
 	// LiveEmail returns the email of the account Claude Code is logged in as
@@ -57,22 +62,33 @@ func (a *app) statusline(args []string) int {
 	return a.usageError("")
 }
 
-// statuslineRun records the usage found in the status line JSON on stdin, then
-// runs the wrapped command (if any) with the same bytes.
+// statuslineRun runs the wrapped command (if any) with the stdin bytes and
+// records the usage found in them. The recording runs alongside the command and
+// is never waited for beyond recordGrace, so a slow or locked usage store
+// cannot delay the command's output or change its exit code.
 func (a *app) statuslineRun(wrapped []string) int {
 	var raw []byte
 	if a.Stdin != nil {
 		raw, _ = io.ReadAll(io.LimitReader(a.Stdin, maxStatuslineInput))
 	}
-	a.recordUsage(raw)
-	if len(wrapped) == 0 {
-		return exitOK
+	recorded := make(chan struct{})
+	go func() {
+		defer close(recorded)
+		a.recordUsage(raw)
+	}()
+	code := exitOK
+	if len(wrapped) > 0 {
+		run := a.Statusline.Exec
+		if run == nil {
+			run = runArgv
+		}
+		code = run(wrapped, bytes.NewReader(raw), a.Stdout, a.Stderr)
 	}
-	run := a.Statusline.Exec
-	if run == nil {
-		run = runArgv
+	select {
+	case <-recorded:
+	case <-time.After(recordGrace):
 	}
-	return run(wrapped, bytes.NewReader(raw), a.Stdout, a.Stderr)
+	return code
 }
 
 // recordUsage stores the rate limits of raw for the active profile. It is best
