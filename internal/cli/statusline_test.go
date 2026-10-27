@@ -717,7 +717,7 @@ func TestShellQuoteForms(t *testing.T) {
 		{`a"b`, `"a\"b"`},
 		{"a$b", `"a\$b"`},
 		{"a`b", `"a\` + "`" + `b"`},
-		{`a\b`, `"a\b"`},
+		{`a\b`, `"a\\b"`},
 	}
 	for _, tc := range tests {
 		if got := shellQuote(tc.in); got != tc.want {
