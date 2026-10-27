@@ -389,8 +389,11 @@ var safeWord = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
 
 var doubleQuoteEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\\`")
 
-// shellQuote leaves plain words alone and double-quotes the rest, a form that
-// POSIX shells, cmd and PowerShell all read the same way.
+// shellQuote leaves plain words alone and double-quotes the rest, escaping the
+// four characters that stay special inside POSIX double quotes (\ " $ `).
+// The result is only guaranteed for POSIX shells (sh, bash, zsh, and Git Bash
+// on Windows, which Claude Code uses there); cmd.exe and PowerShell read
+// backslash escapes differently, so no claim is made for them.
 func shellQuote(s string) string {
 	if safeWord.MatchString(s) {
 		return s

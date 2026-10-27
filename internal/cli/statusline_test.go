@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -683,5 +684,44 @@ func TestStatuslineUninstallDistinguishesNoPreviousFromABrokenBackup(t *testing.
 				t.Error("settings changed")
 			}
 		})
+	}
+}
+
+// TestShellQuoteRoundTripsThroughAPOSIXShell runs the quoted words through a
+// real sh and checks it hands back exactly the original words.
+func TestShellQuoteRoundTripsThroughAPOSIXShell(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no POSIX sh on this machine")
+	}
+	words := []string{"plain", "a b", `say "hi"`, "cost $HOME", "tick`id`", `back\slash`, "it's", "", "é ñ", "--flag=x y", "a#b", "~root", "x;y", "!bang"}
+	quoted := make([]string, len(words))
+	for i, w := range words {
+		quoted[i] = shellQuote(w)
+	}
+	out, err := exec.Command(sh, "-c", `for a in `+strings.Join(quoted, " ")+`; do printf '%s\0' "$a"; done`).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+	if strings.Join(got, "|") != strings.Join(words, "|") {
+		t.Errorf("sh read %q, want %q (quoted as %q)", got, words, quoted)
+	}
+}
+
+func TestShellQuoteForms(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"plain-1.2/x_y", "plain-1.2/x_y"},
+		{"", `""`},
+		{"a b", `"a b"`},
+		{`a"b`, `"a\"b"`},
+		{"a$b", `"a\$b"`},
+		{"a`b", `"a\` + "`" + `b"`},
+		{`a\b`, `"a\b"`},
+	}
+	for _, tc := range tests {
+		if got := shellQuote(tc.in); got != tc.want {
+			t.Errorf("shellQuote(%q) = %s, want %s", tc.in, got, tc.want)
+		}
 	}
 }
