@@ -71,8 +71,8 @@ Out:
 |----|--------|------|-------|--------|
 | A1 | [x] | `internal/auto`: config and state stores, the pure `Decide` with exhaustive table tests | bounded writer | 3960c5a, 93a2145 |
 | A2 | [x] | `cid auto` commands (`on`, `off`, `add`, `remove`, `principal`, `reserve`, status), i18n, `/account auto` | bounded writer | 0336916, 51e6004 |
-| A3 | [ ] | statusline evaluation, the pending switch and the notice line; the `UserPromptSubmit` hook applies it; plugin `hooks.json` | bounded writer | |
-| A4 | [ ] | Docs: README section, SKILL.md hint, help | bounded writer | |
+| A3 | [x] | statusline evaluation, the pending switch and the notice line; the `UserPromptSubmit` hook applies it; plugin `hooks.json` | bounded writer | 421e6d1, 98d9eb0, 7037c45, ec67b0a |
+| A4 | [x] | Docs: README section, SKILL.md hint, help | bounded writer | e4badba |
 
 Slices: PR 1 is A1 + A2, PR 2 is A3 + A4.
 
@@ -99,3 +99,10 @@ Slices: PR 1 is A1 + A2, PR 2 is A3 + A4.
   - `Decide` ignores the `enabled` flag (the caller checks it). If the active account is not enrolled it never switches away.
   - `NoCandidate` is set whenever the active account fired and nobody can take over, even during the cooldown; the notifier de-duplicates with `lastNoCandidateAt` (A3).
 - A2 done (`0336916`, `51e6004`): `cid auto [--json]`, `on|off`, `add`, `remove`, `principal`, `reserve`, `defaults`; `Deps.Auto` and `Deps.AutoState`. `cid remove` and `cid uninstall` clean the auto files. `/account auto ...` already passes the hook allow-list (tokens such as `--5h` match it), now covered by a test. Role commands require an enrolled account (exit 2); there is no command to clear a role yet.
+- A3 done: `cid statusline` evaluates after a successful usage recording (inside the best-effort goroutine) and writes `pending` or a once-per-hour no-candidate notice; `cid hook` handles `UserPromptSubmit` silently (exit 0, no output) and applies the pending switch through `swap.Service.Switch` after re-validating it (still enabled, target enrolled, not older than 10 min, `from` is the live profile). The status line prints the notice after the wrapped output while `now < until` and clears an expired one lazily. State gained `history` (last 20, with an `error` field for failures). Deviations:
+  - The evaluation also clears a pending switch when the new decision no longer holds, so a stale one is not applied.
+  - A failed switch sets `lastSwitchAt` too, so a persistent failure cannot retry on every prompt (the cooldown is bypassed only at 100%).
+  - There is no extra timeout around `Switch`: abandoning it mid-write could leave a half-done swap, so it relies on the Claude Code lock wait (at most about 9 s) and the hook timeout of 30 s.
+  - `AutoStatePort` now has `Update`; `cid auto` and `--json` show the latest 5 history entries.
+  - Risk: each evaluation reads the keyring status of every enrolled non-active account (local, no network); it only runs when the status line refresh carries `rate_limits` for the live account.
+- A4 done: README section "Automatic switching" and table row, `/account auto ...` line, SKILL.md argument hint. Help text from A2 needed no change.
