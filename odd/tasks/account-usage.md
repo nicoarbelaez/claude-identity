@@ -50,7 +50,7 @@ Out:
 | U2 | [x] | `cid statusline` record and passthrough, plus `install`/`uninstall` of the wrapper in user `settings.json` (backup, idempotent, keeps the user's command) | bounded writer | 5dd56af, 7f7e0e6 |
 | U3 | [x] | `cid list` and `/account` rendering with numbered rows, bars and colors; `--json` usage fields; `/account <n>` switch confirmed | bounded writer | 47df9c7, 49329c4, 410301d, dd4f3ad, f561267, da89299 |
 | U4 | [x] | Switch safety: Claude Code lock directories, guarded capture (skip wiped/foreign), rollback on failed verify, 5-minute expiry buffer, Windows rename retry | bounded writer | 16da3bf, 2d4597e, c0f5852, 31072b9, 3c557f5 |
-| U5 | [ ] | Docs: README (usage, status line setup, safety notes), SKILL.md hint, help text | bounded writer | |
+| U5 | [x] | Docs: README (usage, status line setup, safety notes), SKILL.md hint, help text | bounded writer | cd86f51 |
 
 Route evidence: 2+ non-trivial files per task, so a writer. Planned slices: U1+U2, U3, U4, U5. That forecast is more than 400 lines, so chained PRs.
 
@@ -98,3 +98,5 @@ Route evidence: 2+ non-trivial files per task, so a writer. Planned slices: U1+U
   - Guarded capture: `Bundle.Wiped()` (both tokens empty or unreadable) is never stored into a vault entry and a wiped live login no longer counts as "already active". A foreign live account (email in no profile) is still refused with `ErrUnknownLiveAccount`, so it can never reach a profile; no `__stash__` copy is made because nothing is overwritten.
   - Rollback: `writeVerified` restores the bytes read at the start when write or verify fails; if the restore fails too the error is `RollbackError` (keeps `ErrVerify`, one-line i18n message about `/login`).
   - `credentials.ExpiryBuffer = 5 min` in `Status`. `fsutil.Rename` retries ERROR_ACCESS_DENIED / ERROR_SHARING_VIOLATION (10 attempts, 2 ms doubling to 250 ms, about 750 ms total) and is used by `fsutil.WriteAtomic` and the live credential writer in `claudecfg`.
+- U5 done (`cd86f51`):
+  - README: usage table updated, new "Usage per account" (sample output, data source, install/uninstall, Windows limitation) and "Switching safely" sections. SKILL.md unchanged: its argument hint already covers `[n|name]` switching and must not mention statusline.
