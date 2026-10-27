@@ -59,7 +59,7 @@ func TestNoMessageHasNumberedSteps(t *testing.T) {
 func TestUsageMentionsEveryCommand(t *testing.T) {
 	for _, lang := range []Lang{EN, ES} {
 		usage := T(lang, Usage)
-		for _, cmd := range []string{"cid list", "cid switch", "cid add", "cid remove", "cid relogin", "cid current", "cid config", "cid config get", "cid config set", "cid config unset", "cid statusline", "cid statusline install", "cid statusline uninstall", "cid uninstall", "cid update", "cid version", "cid help", "--json", "--force", "--current", "--console", "--sso"} {
+		for _, cmd := range []string{"cid list", "cid switch", "cid add", "cid remove", "cid relogin", "cid current", "cid config", "cid config get", "cid config set", "cid config unset", "cid statusline", "cid statusline install", "cid statusline uninstall", "cid auto", "cid auto on|off", "cid auto add", "cid auto remove", "cid auto principal", "cid auto reserve", "cid auto defaults", "--5h", "--week", "cid uninstall", "cid update", "cid version", "cid help", "--json", "--force", "--current", "--console", "--sso"} {
 			if !strings.Contains(usage, cmd) {
 				t.Errorf("%s usage does not mention %q", lang, cmd)
 			}

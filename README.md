@@ -23,6 +23,7 @@ The repository is also a Claude Code plugin marketplace. The plugin provides:
 - `/account relogin <n|name>` to refresh a profile's login
 - `/account add <name> --current` to capture the login that is live in Claude Code (run `/login` first)
 - `/account config` to configure language and options
+- `/account auto ...` to set up automatic switching
 
 The same operations are available from the CLI binary `cid`. Supported platforms: Windows, macOS, Linux. Languages: English and Spanish.
 
@@ -168,6 +169,7 @@ Inside Claude Code, `/account add` and `/account relogin` run the same login fro
 | `cid config set <key> <value>` | Validate and save a setting in `config.json`. Exit `2` for an unknown key or an invalid value. |
 | `cid config unset <key>` | Remove a setting from `config.json` so its default applies again. |
 | `cid statusline [install\|uninstall]` | Record plan usage from Claude Code's status line input. `install` wraps your current status line and `uninstall` restores it exactly. See [Usage per account](#usage-per-account). |
+| `cid auto [on\|off\|add\|remove\|principal\|reserve\|defaults]` | Switch accounts automatically when the active one nears its limits. See [Automatic switching](#automatic-switching). |
 | `cid update` | Update the `cid` binary (checksum verified) and the `account-switch` plugin to the latest release. See [Updating](#updating). |
 | `cid version` | Show the version, and a note when a newer release exists. |
 
@@ -207,6 +209,38 @@ cid statusline uninstall   # put it back exactly as it was
 `install` wraps your existing status line command: it still runs with the same input and its output is unchanged. `uninstall` restores the previous setting byte for byte. `cid uninstall` also unwraps it. While the active account has no reading and the wrapper is not installed, `cid list` prints a one-line hint to run `cid statusline install`.
 
 **Windows.** If the previous status line command contains backslashes or shell metacharacters, `install` refuses and changes nothing. Use forward slashes in that command (for example `C:/tools/line.exe`) and run `install` again.
+
+## Automatic switching
+
+`cid auto` switches the live account for you when the active one gets close to its limit, so a long session does not stop at the 5-hour or weekly wall. It works from the usage readings that `cid statusline` already records, makes no network call and never reads a token.
+
+**When.** The status line checks the active account on every refresh. If its 5-hour usage reaches the 5h line (90% by default) or its weekly usage reaches the week line (95%), a switch is queued. A `UserPromptSubmit` hook applies it just before your next message is sent, never in the middle of a response. The status line then shows `⇄ work → personal (5h 91%)` for about two minutes, and the switch is kept in a short log that `cid auto` prints.
+
+**Which account.** Only enrolled accounts that are signed in and under both of their lines are candidates.
+
+- The account whose weekly window resets soonest goes first, so weekly quota is spent before it renews. A tie goes to the principal, then to the account with the most room, then to the lowest index.
+- The principal is also the account the rule returns to: once its weekly reset is no later than the active account's and it is under its lines again (for example after its 5-hour window reset), `cid` moves back to it even though nothing is near a limit.
+- A reserve account is used only when no other account is under its lines.
+- When every enrolled account is past its weekly line, `cid` equalizes: it moves to the account with the most room left, provided that room is larger than the active account's and the account is below 100%.
+- To avoid flapping, a switch needs the target to have at least 5 points more headroom than the active account (the return to the principal and equalizing are exempt), and two switches are at least 5 minutes apart. An active account at 100% of a window skips both rules.
+
+**Setup.**
+
+```sh
+cid statusline install        # the status line feeds and triggers auto-switching
+cid auto add 1                # enroll accounts by index or name (defaults: 5h 90%, week 95%)
+cid auto add personal --5h 85 --week 90
+cid auto principal work       # wins ties and is the account to return to
+cid auto reserve spare        # used only when nobody else is under its lines
+cid auto on                   # nothing switches until you turn it on
+cid auto                      # accounts, lines, pending switch, recent switches
+cid auto defaults --5h 85     # change the default lines
+cid auto off                  # stop switching at once
+```
+
+`cid auto remove <n|name>` takes an account out. The same commands work as `/account auto ...`, and `cid auto --json` prints the state for scripts. The plugin hook is a single `cid hook` entry, so `cid` must be on `PATH`; with nothing pending it reads one small file and exits.
+
+**Limits.** The rule trusts `cid`'s own readings, so it assumes this machine is the only place these accounts are used. Usage on another machine or app is not seen, and the cache then undercounts. If a switch fails, the prompt still goes through and the status line says so.
 
 ## Switching safely
 

@@ -77,19 +77,39 @@ func (a *app) statuslineRun(wrapped []string) int {
 		a.recordUsage(raw)
 	}()
 	code := exitOK
+	out := &tailWriter{w: a.Stdout}
 	if len(wrapped) > 0 {
 		run := a.Statusline.Exec
 		if run == nil {
 			run = runArgv
 		}
-		code = run(wrapped, bytes.NewReader(raw), a.Stdout, a.Stderr)
+		code = run(wrapped, bytes.NewReader(raw), out, a.Stderr)
 	}
 	select {
 	case <-recorded:
 	case <-time.After(recordGrace):
 	}
+	a.printNotice(a.Stdout, out.partial(), a.now())
 	return code
 }
+
+// tailWriter forwards writes unchanged and remembers whether the last byte
+// written ended a line, so the notice can start on a fresh one.
+type tailWriter struct {
+	w    io.Writer
+	last byte
+}
+
+func (t *tailWriter) Write(p []byte) (int, error) {
+	n, err := t.w.Write(p)
+	if n > 0 {
+		t.last = p[n-1]
+	}
+	return n, err
+}
+
+// partial reports whether output was written and did not end in a newline.
+func (t *tailWriter) partial() bool { return t.last != 0 && t.last != '\n' }
 
 // recordUsage stores the rate limits of raw for the active profile. It is best
 // effort and never panics out: it only records when the live account is the
@@ -114,7 +134,10 @@ func (a *app) recordUsage(raw []byte) {
 	if a.Statusline.Now != nil {
 		now = a.Statusline.Now
 	}
-	_ = a.Usage.Record(p.Name, windows, now())
+	t := now()
+	if a.Usage.Record(p.Name, windows, t) == nil {
+		a.evaluateAuto(p.Name, t)
+	}
 }
 
 // rateWindow is one rate_limits entry of the status line JSON. resets_at is

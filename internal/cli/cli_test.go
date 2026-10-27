@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicoarbelaez/claude-identity/internal/auto"
 	"github.com/nicoarbelaez/claude-identity/internal/cclock"
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
@@ -23,14 +24,16 @@ import (
 // rig wires the real profile store, swap service and file-based live store on
 // temp dirs and an in-memory vault. It never touches ~/.claude or the OS keyring.
 type rig struct {
-	t      *testing.T
-	live   *claudecfg.FileStore
-	prof   *profile.Store
-	vault  *vault.MemoryVault
-	usage  *usage.Store
-	deps   Deps
-	stdout *bytes.Buffer
-	stderr *bytes.Buffer
+	t         *testing.T
+	live      *claudecfg.FileStore
+	prof      *profile.Store
+	vault     *vault.MemoryVault
+	usage     *usage.Store
+	autoCfg   *auto.ConfigStore
+	autoState *auto.StateStore
+	deps      Deps
+	stdout    *bytes.Buffer
+	stderr    *bytes.Buffer
 }
 
 func newRig(t *testing.T) *rig {
@@ -44,16 +47,19 @@ func newRig(t *testing.T) *rig {
 	p := profile.NewStore(profilesPath)
 	svc := swap.New(p, v, live, filepath.Join(dir, "cid", "cid.lock"))
 	us := usage.NewStore(usage.PathFor(profilesPath))
-	r := &rig{t: t, live: live, prof: p, vault: v, usage: us, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	cfg, st := auto.NewConfigStore(auto.PathFor(profilesPath)), auto.NewStateStore(auto.StatePathFor(profilesPath))
+	r := &rig{t: t, live: live, prof: p, vault: v, usage: us, autoCfg: cfg, autoState: st, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
 	r.deps = Deps{
-		Profiles: p,
-		Swap:     svc,
-		Usage:    us,
-		Lang:     i18n.EN,
-		GOOS:     "linux",
-		Config:   Config{ProfilesPath: profilesPath, ClaudeDir: filepath.Dir(paths.Credentials)},
-		Stdout:   r.stdout,
-		Stderr:   r.stderr,
+		Profiles:  p,
+		Swap:      svc,
+		Usage:     us,
+		Auto:      cfg,
+		AutoState: st,
+		Lang:      i18n.EN,
+		GOOS:      "linux",
+		Config:    Config{ProfilesPath: profilesPath, ClaudeDir: filepath.Dir(paths.Credentials)},
+		Stdout:    r.stdout,
+		Stderr:    r.stderr,
 	}
 	return r
 }

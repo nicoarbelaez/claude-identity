@@ -184,6 +184,16 @@ var catalogEN = map[Key]string{
                             Record plan usage from the Claude Code status line, then run the command
   cid statusline install    Wrap the Claude Code status line so usage is recorded
   cid statusline uninstall  Restore the status line that was there before
+  cid auto [--json]         Show auto-switch: state, lines and accounts
+  cid auto on|off           Turn automatic account switching on or off
+  cid auto add <n|name> [--5h N] [--week N]
+                            Enroll an account (or update its lines, in percent)
+  cid auto remove <n|name>  Stop managing an account
+  cid auto principal <n|name>
+                            Prefer this account when the rule has a tie
+  cid auto reserve <n|name> Use this account only when no other can take over
+  cid auto defaults [--5h N] [--week N]
+                            Show or change the default lines
   cid uninstall [--yes]     Remove all cid data (profiles, stored credentials, PATH entry)
   cid update                Update cid and the account-switch plugin to the latest release
   cid version               Show the version
@@ -286,6 +296,18 @@ var catalogES = map[Key]string{
                             Registra el uso del plan desde la línea de estado de Claude Code y ejecuta el comando
   cid statusline install    Envuelve la línea de estado de Claude Code para registrar el uso
   cid statusline uninstall  Restaura la línea de estado que había antes
+  cid auto [--json]         Muestra el cambio automático: estado, umbrales y cuentas
+  cid auto on|off           Activa o desactiva el cambio automático de cuenta
+  cid auto add <n|nombre> [--5h N] [--week N]
+                            Inscribe una cuenta (o cambia sus umbrales, en porcentaje)
+  cid auto remove <n|nombre>
+                            Deja de gestionar una cuenta
+  cid auto principal <n|nombre>
+                            Prefiere esta cuenta cuando la regla empata
+  cid auto reserve <n|nombre>
+                            Usa esta cuenta solo si ninguna otra puede tomar el relevo
+  cid auto defaults [--5h N] [--week N]
+                            Muestra o cambia los umbrales por defecto
   cid uninstall [--yes]     Elimina todos los datos de cid (perfiles, credenciales guardadas, entrada del PATH)
   cid update                Actualiza cid y el plugin account-switch a la última versión
   cid version               Muestra la versión

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cid auto-state.json",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "pending": {
+      "type": ["object", "null"],
+      "required": ["from", "to", "reason", "window", "pct", "at"],
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "reason": { "type": "string" },
+        "window": { "type": "string" },
+        "pct": { "type": "number", "minimum": 0 },
+        "at": { "type": "string" }
+      }
+    },
+    "lastSwitchAt": { "type": "string" },
+    "notice": {
+      "type": ["object", "null"],
+      "required": ["text", "until"],
+      "properties": {
+        "text": { "type": "string" },
+        "until": { "type": "string" }
+      }
+    },
+    "lastNoCandidateAt": { "type": "string" },
+    "history": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["at", "from", "to"],
+        "properties": {
+          "at": { "type": "string" },
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "reason": { "type": "string" },
+          "window": { "type": "string" },
+          "pct": { "type": "number" },
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}

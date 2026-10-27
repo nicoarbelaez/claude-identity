@@ -73,6 +73,10 @@ type Deps struct {
 	Config   Config
 	// Usage is the per-profile usage cache; nil disables recording and cleanup.
 	Usage UsagePort
+	// Auto and AutoState are the auto-switch config and state stores; a nil Auto
+	// disables `cid auto`, a nil AutoState only the pending/last-switch lines.
+	Auto      AutoConfigPort
+	AutoState AutoStatePort
 	// Statusline holds the collaborators of `cid statusline`.
 	Statusline StatuslineDeps
 	// Settings is the config.json store behind `cid config`; nil disables it.
@@ -129,6 +133,8 @@ func Run(d Deps, args []string) int {
 		return a.config(rest)
 	case "statusline":
 		return a.statusline(rest)
+	case "auto":
+		return a.autoCmd(rest)
 	case "uninstall":
 		return a.uninstall(rest)
 	case "update":
@@ -337,6 +343,7 @@ func (a *app) remove(args []string) int {
 	if a.Usage != nil {
 		_ = a.Usage.Forget(p.Name) // best effort: a stale reading is harmless
 	}
+	a.forgetAuto(p.Name)
 	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileRemoved, p.Name))
 	return exitOK
 }

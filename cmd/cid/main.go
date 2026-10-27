@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/nicoarbelaez/claude-identity/internal/auto"
 	"github.com/nicoarbelaez/claude-identity/internal/cclock"
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/cli"
@@ -101,11 +102,13 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 	svc.CCLocks = ccLocks
 	exe, _ := os.Executable() // empty on failure: uninstall then skips the binary-specific steps
 	return cli.Deps{
-		Profiles: store,
-		Swap:     svc,
-		Usage:    usage.NewStore(usage.PathFor(profilesPath)).WithNotifier(notify),
-		Lang:     lang,
-		Settings: sett,
+		Profiles:  store,
+		Swap:      svc,
+		Usage:     usage.NewStore(usage.PathFor(profilesPath)).WithNotifier(notify),
+		Auto:      auto.NewConfigStore(auto.PathFor(profilesPath)).WithNotifier(notify),
+		AutoState: auto.NewStateStore(auto.StatePathFor(profilesPath)).WithNotifier(notify),
+		Lang:      lang,
+		Settings:  sett,
 		Statusline: cli.StatuslineDeps{
 			LiveEmail:  live.Current,
 			Executable: exe,

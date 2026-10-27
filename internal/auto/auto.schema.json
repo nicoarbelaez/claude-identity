@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cid auto.json",
+  "type": "object",
+  "required": ["schemaVersion", "enabled", "defaults", "accounts"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "enabled": { "type": "boolean" },
+    "defaults": {
+      "type": "object",
+      "required": ["fiveHour", "week"],
+      "properties": {
+        "fiveHour": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "week": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "accounts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["fiveHour", "week", "role"],
+        "properties": {
+          "fiveHour": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 },
+          "week": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 },
+          "role": { "enum": ["principal", "reserve", ""] }
+        }
+      }
+    }
+  }
+}
