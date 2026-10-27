@@ -1,0 +1,5 @@
+{
+  "name": "account-menu",
+  "version": "0.1.0",
+  "description": "Spike: an interactive /account menu (accounts, details, config) drawn as a Claude Code pane, backed by the cid CLI."
+}
