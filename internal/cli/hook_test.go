@@ -166,7 +166,7 @@ func TestHookFailureContextCarriesCidError(t *testing.T) {
 }
 
 func TestHookInvalidTokensAddContextWithoutRunningCid(t *testing.T) {
-	for _, args := range []string{"x;rm", "list $(id)", "a|b", "hook", "hook list", "update", "Update now", strings.Repeat("a", 33)} {
+	for _, args := range []string{"x;rm", "list $(id)", "a|b", "hook", "hook list", "update", "Update now", "statusline", "Statusline install", strings.Repeat("a", 33)} {
 		r := newRig(t)
 		r.twoProfiles()
 		cs := &countingSwap{Swapper: r.deps.Swap}

@@ -176,6 +176,10 @@ var catalogEN = map[Key]string{
   cid config set <key> <value>
                             Change a setting (for example: language es)
   cid config unset <key>    Restore a setting to its default
+  cid statusline [-- <command> [args...]]
+                            Record plan usage from the Claude Code status line, then run the command
+  cid statusline install    Wrap the Claude Code status line so usage is recorded
+  cid statusline uninstall  Restore the status line that was there before
   cid uninstall [--yes]     Remove all cid data (profiles, stored credentials, PATH entry)
   cid update                Update cid and the account-switch plugin to the latest release
   cid version               Show the version
@@ -272,6 +276,10 @@ var catalogES = map[Key]string{
   cid config set <clave> <valor>
                             Cambia un ajuste (por ejemplo: language es)
   cid config unset <clave>  Restaura un ajuste a su valor predeterminado
+  cid statusline [-- <comando> [args...]]
+                            Registra el uso del plan desde la línea de estado de Claude Code y ejecuta el comando
+  cid statusline install    Envuelve la línea de estado de Claude Code para registrar el uso
+  cid statusline uninstall  Restaura la línea de estado que había antes
   cid uninstall [--yes]     Elimina todos los datos de cid (perfiles, credenciales guardadas, entrada del PATH)
   cid update                Actualiza cid y el plugin account-switch a la última versión
   cid version               Muestra la versión

@@ -71,6 +71,8 @@ type Deps struct {
 	Config   Config
 	// Usage is the per-profile usage cache; nil disables recording and cleanup.
 	Usage UsagePort
+	// Statusline holds the collaborators of `cid statusline`.
+	Statusline StatuslineDeps
 	// Settings is the config.json store behind `cid config`; nil disables it.
 	Settings SettingsPort
 	// Uninstall holds the collaborators of `cid uninstall`.
@@ -115,6 +117,8 @@ func Run(d Deps, args []string) int {
 		return a.current(rest)
 	case "config":
 		return a.config(rest)
+	case "statusline":
+		return a.statusline(rest)
 	case "uninstall":
 		return a.uninstall(rest)
 	case "update":
