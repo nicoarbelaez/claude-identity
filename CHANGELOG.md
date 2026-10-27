@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.7.0...v0.8.0) (2026-10-27)
+
+
+### Features
+
+* **cli:** rediseñar cid list con layout espaciado y glifos ([#33](https://github.com/nicoarbelaez/claude-identity/issues/33)) ([fb0b508](https://github.com/nicoarbelaez/claude-identity/commit/fb0b508fb83e79445923b489b9d0b0c7411d93d8))
+
 ## [0.7.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.6.0...v0.7.0) (2026-10-27)
 
 
