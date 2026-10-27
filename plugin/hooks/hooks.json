@@ -1,5 +1,5 @@
 {
-  "description": "Answer /account instantly with the cid output, without a model turn.",
+  "description": "Answer /account instantly with the cid output, without a model turn, and apply pending automatic account switches before a prompt is sent.",
   "hooks": {
     "UserPromptExpansion": [
       {
@@ -11,6 +11,18 @@
             "args": ["hook"],
             "timeout": 660,
             "statusMessage": "cid…"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cid",
+            "args": ["hook"],
+            "timeout": 30
           }
         ]
       }
