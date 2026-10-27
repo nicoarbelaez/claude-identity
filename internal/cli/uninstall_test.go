@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicoarbelaez/claude-identity/internal/auto"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
@@ -314,5 +315,27 @@ func TestUninstallWithBadSettingsAndNoBackupStaysQuiet(t *testing.T) {
 	}
 	if r.stderr.Len() != 0 {
 		t.Errorf("stderr = %q, want nothing: there was no saved status line", r.stderr)
+	}
+}
+
+func TestUninstallRemovesAutoFiles(t *testing.T) {
+	r, _, _ := uninstallRig(t)
+	cfgDir := filepath.Dir(r.deps.Config.ProfilesPath)
+	if err := r.autoCfg.Update(func(c *auto.Config) error { return c.Enroll("a", nil, nil) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.autoState.Update(func(s *auto.State) { s.LastSwitchAt = time.Now() }); err != nil {
+		t.Fatal(err)
+	}
+	cfgFile := auto.PathFor(r.deps.Config.ProfilesPath)
+	stateFile := auto.StatePathFor(r.deps.Config.ProfilesPath)
+	if !exists(cfgFile) || !exists(stateFile) || !exists(auto.LockFor(cfgFile)) {
+		t.Fatal("precondition: auto files and lock should exist")
+	}
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if exists(cfgFile) || exists(stateFile) || exists(auto.LockFor(cfgFile)) || exists(cfgDir) {
+		t.Errorf("auto files or config dir left behind in %s", cfgDir)
 	}
 }

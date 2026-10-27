@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nicoarbelaez/claude-identity/internal/auto"
 	"github.com/nicoarbelaez/claude-identity/internal/fsutil"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/pathenv"
@@ -109,6 +110,13 @@ func (a *app) uninstall(args []string) int {
 		cache := usage.PathFor(a.Config.ProfilesPath)
 		files = append(files, fileFamily(cache)...)
 		files = append(files, usage.LockFor(cache))
+	}
+	if a.Config.ProfilesPath != "" {
+		cfg := auto.PathFor(a.Config.ProfilesPath)
+		state := auto.StatePathFor(a.Config.ProfilesPath)
+		files = append(files, fileFamily(cfg)...)
+		files = append(files, fileFamily(state)...)
+		files = append(files, auto.LockFor(cfg))
 	}
 	if !keepStatuslineBackup && a.Config.ProfilesPath != "" {
 		files = append(files, a.backupPath())
