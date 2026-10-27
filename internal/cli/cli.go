@@ -95,6 +95,9 @@ type Deps struct {
 	// Color enables ANSI colors in `cid list`. Set it only when Stdout is a
 	// terminal (see UseColor); the hook leaves it off.
 	Color bool
+	// Width is the terminal width in columns, used to size the usage bars of
+	// `cid list`; 0 means unknown (pipes, the hook) and selects the default.
+	Width int
 	// Quiet suppresses progress lines such as "Starting the login..." (hook mode).
 	Quiet bool
 	// GOOS is the operating system; empty means runtime.GOOS. Tests set it.

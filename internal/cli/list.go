@@ -19,8 +19,20 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/usage"
 )
 
-// barWidth is the width of a usage bar in cells.
-const barWidth = 16
+// Usage bar width in cells: the default when the terminal width is unknown,
+// and the bounds it is fitted into on a terminal.
+const (
+	barWidth    = 32
+	barWidthMin = 12
+	barWidthMax = 40
+)
+
+// Glyphs of the list.
+const (
+	markActive   = "●"
+	markInactive = "○"
+	markProblem  = "✗"
+)
 
 // windowOrder is the order the usage windows are listed in.
 var windowOrder = []string{usage.FiveHour, usage.SevenDay}
@@ -40,6 +52,19 @@ const (
 func UseColor(w io.Writer) bool {
 	f, ok := w.(*os.File)
 	return colorEnabled(ok && term.IsTerminal(int(f.Fd())), os.Getenv, runtime.GOOS)
+}
+
+// TermWidth returns the width of w in columns when w is a terminal, else 0.
+func TermWidth(w io.Writer) int {
+	f, ok := w.(*os.File)
+	if !ok || !term.IsTerminal(int(f.Fd())) {
+		return 0
+	}
+	cols, _, err := term.GetSize(int(f.Fd()))
+	if err != nil || cols < 0 {
+		return 0
+	}
+	return cols
 }
 
 // colorEnabled is UseColor with its inputs made explicit. On Windows, ANSI
@@ -110,12 +135,16 @@ func (a *app) list(args []string) int {
 		a.printf(a.Stdout, "%s\n", a.t(i18n.ListEmpty))
 		return exitOK
 	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileListHeader))
+	a.printf(a.Stdout, "%s\n\n", a.t(i18n.ProfileListHeader))
 	hint := haveUsage && !a.wrapperInstalled()
 	rows := a.buildRows(ps, activeName, readings, now)
 	lay := layoutOf(rows)
-	for _, row := range rows {
-		a.printRow(row, lay)
+	bw := a.barCells(rows, lay)
+	for i, row := range rows {
+		if i > 0 {
+			a.printf(a.Stdout, "\n")
+		}
+		a.printRow(row, lay, bw)
 		if row.active && hint {
 			if _, recorded := readings[row.name]; !recorded {
 				a.printf(a.Stdout, "%s%s\n", row.indent, a.paint(ansiDim, a.t(i18n.UsageHint)))
@@ -175,17 +204,18 @@ type row struct {
 	active      bool
 	marker      string
 	index       string
-	note        string
-	noteStyle   string
+	notes       []note
 	indent      string // prefix of the usage lines, aligned with the name column
 	lines       []usageLine
 }
 
+// note is a short remark at the end of a profile row.
+type note struct{ text, style string }
+
 type usageLine struct {
 	label  string
-	bar    string
-	pct    int
-	level  usage.Level
+	pct    float64 // as recorded; the bar is drawn once its width is known
+	shown  int
 	resets string
 }
 
@@ -201,31 +231,28 @@ func (a *app) buildRows(ps []profile.Profile, activeName string, readings map[st
 			name:   p.Name,
 			email:  p.Email,
 			active: active,
-			marker: " ",
+			marker: markInactive,
 			index:  fmt.Sprintf("%*d", idxW, p.Index),
-			indent: strings.Repeat(" ", 2+idxW+2),
+			indent: strings.Repeat(" ", 1+1+2+idxW+2),
 		}
 		if active {
-			r.marker = "●"
+			r.marker = markActive
 		}
-		var parts []string
 		if st := a.Swap.Status(p.Name, active); st != credentials.StatusOK {
-			parts = append(parts, a.statusLabel(st))
-			r.noteStyle = ansiYellow
+			style := ansiYellow
 			if st == credentials.StatusNeedsLogin {
-				r.noteStyle = ansiRed
+				style = ansiRed
 			}
+			r.notes = append(r.notes, note{markProblem + " " + a.statusLabel(st), style})
 		}
 		if e, ok := readings[p.Name]; ok {
 			if age := a.ageNote(e.FetchedAt, now); age != "" {
-				parts = append(parts, age)
+				r.notes = append(r.notes, note{age, ansiDim})
 			}
 			r.lines = a.usageLines(e, now)
 		}
-		r.note = strings.Join(parts, " · ")
-		if r.note != "" && r.noteStyle == "" { // age only
-			r.note = "· " + r.note
-			r.noteStyle = ansiDim
+		if active {
+			r.notes = append(r.notes, note{a.t(i18n.UsageActive), ansiDim})
 		}
 		rows = append(rows, r)
 	}
@@ -260,9 +287,8 @@ func (a *app) usageLines(e usage.Entry, now time.Time) []usageLine {
 		}
 		lines = append(lines, usageLine{
 			label:  label,
-			bar:    usage.Bar(w.PercentUsed, barWidth),
-			pct:    int(math.Round(math.Min(math.Max(w.PercentUsed, 0), 999))),
-			level:  usage.LevelOf(w.PercentUsed),
+			pct:    w.PercentUsed,
+			shown:  int(math.Round(math.Min(math.Max(w.PercentUsed, 0), 999))),
 			resets: a.t(i18n.UsageResets, usage.Countdown(w.ResetsAt, now)),
 		})
 	}
@@ -270,36 +296,58 @@ func (a *app) usageLines(e usage.Entry, now time.Time) []usageLine {
 }
 
 // layout holds the column widths shared by every row.
-type layout struct{ name, email, label int }
+type layout struct{ name, email, label, resets int }
 
 func layoutOf(rows []row) layout {
 	var l layout
 	for _, r := range rows {
-		l.name = max(l.name, utf8.RuneCountInString(r.name))
-		l.email = max(l.email, utf8.RuneCountInString(r.email))
+		l.name = max(l.name, utf8.RuneCountInString(r.name)+2)
+		l.email = max(l.email, utf8.RuneCountInString(r.email)+2)
 		for _, u := range r.lines {
 			l.label = max(l.label, utf8.RuneCountInString(u.label))
+			l.resets = max(l.resets, utf8.RuneCountInString(u.resets))
 		}
 	}
 	return l
 }
 
+// usageFixed is the width of a usage line apart from its bar: the indent, the
+// label column, the percent, the resets text and the three gaps of 3 spaces.
+func usageFixed(indent int, l layout) int {
+	const gaps, pct = 3 * 3, 4
+	return indent + l.label + pct + l.resets + gaps
+}
+
+// barCells returns the bar width: the default when the terminal width is
+// unknown, else as much of the terminal as the line leaves, kept within the
+// bounds so a usage line never wraps.
+func (a *app) barCells(rows []row, l layout) int {
+	if a.Width <= 0 || len(rows) == 0 {
+		return barWidth
+	}
+	free := a.Width - usageFixed(len(rows[0].indent), l) - 1
+	return min(max(free, barWidthMin), barWidthMax)
+}
+
 // printRow prints one profile and its usage lines.
-func (a *app) printRow(r row, l layout) {
+func (a *app) printRow(r row, l layout, bw int) {
 	marker := r.marker
 	if r.active {
 		marker = a.paint(ansiGreen, marker)
 	}
-	line := fmt.Sprintf("%s %s  %s  %s", marker, r.index, pad(r.name, l.name), pad(r.email, l.email))
-	if r.note != "" {
-		line += "  " + a.paint(r.noteStyle, r.note)
+	line := fmt.Sprintf(" %s  %s  %s%s", marker, r.index, pad(r.name, l.name), pad(r.email, l.email))
+	for i, n := range r.notes {
+		if i > 0 {
+			line += "  "
+		}
+		line += a.paint(n.style, n.text)
 	}
 	a.printf(a.Stdout, "%s\n", strings.TrimRight(line, " "))
 	for _, u := range r.lines {
-		style := levelStyle(u.level)
-		a.printf(a.Stdout, "%s%s  %s  %s  %s\n", r.indent,
-			a.paint(ansiDim, pad(u.label, l.label)), a.paint(style, u.bar),
-			a.paint(style, fmt.Sprintf("%3d%%", u.pct)), a.paint(ansiDim, u.resets))
+		style := levelStyle(usage.LevelOf(u.pct))
+		a.printf(a.Stdout, "%s%s   %s   %s   %s\n", r.indent,
+			a.paint(ansiDim, pad(u.label, l.label)), a.paint(style, usage.Bar(u.pct, bw)),
+			a.paint(style, fmt.Sprintf("%3d%%", u.shown)), a.paint(ansiDim, u.resets))
 	}
 }
 
