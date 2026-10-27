@@ -134,8 +134,8 @@ func TestSwitchNeverCapturesWipedLiveCredentials(t *testing.T) {
 	if _, err := e.svc.Switch("a"); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.stored(t, "b"); got.ExpiresAt() != 2000 || got.Status(time.Unix(0, 0)) != credentials.StatusOK {
-		t.Errorf("wiped login overwrote the vault copy of b: %+v", got.Status(time.Unix(0, 0)))
+	if got := e.stored(t, "b"); got.ExpiresAt() != 2000 || got.Wiped() {
+		t.Error("wiped login overwrote the vault copy of b")
 	}
 	if email, _ := e.live.Current(); email != "a@example.com" {
 		t.Errorf("live = %s, want a", email)

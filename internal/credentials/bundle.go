@@ -57,6 +57,11 @@ func (b Bundle) Wiped() bool {
 	return o.AccessToken == "" && o.RefreshToken == ""
 }
 
+// ExpiryBuffer is how long before expiresAt an access token already counts as
+// expired, so a token about to lapse is never reported as usable (claude-swap
+// OAUTH_EXPIRY_BUFFER_MS).
+const ExpiryBuffer = 5 * time.Minute
+
 // Status is a local, best-effort view of whether a bundle can still sign in.
 type Status string
 
@@ -68,7 +73,8 @@ const (
 	StatusUnknown       Status = "unknown"
 )
 
-// Status classifies the bundle at time now. It only checks that a refresh
+// Status classifies the bundle at time now; a token that expires within
+// ExpiryBuffer is access_expired. It only checks that a refresh
 // token is present, never its value or validity, so a stale stored copy can
 // still report ok. A payload with no access token, no refresh token and no
 // expiry (null, {} or all-empty fields) is unknown, not needs_login.
@@ -88,7 +94,7 @@ func (b Bundle) Status(now time.Time) Status {
 		return StatusNeedsLogin
 	case o.ExpiresAt <= 0:
 		return StatusUnknown
-	case o.ExpiresAt <= now.UnixMilli():
+	case o.ExpiresAt-ExpiryBuffer.Milliseconds() <= now.UnixMilli():
 		return StatusAccessExpired
 	}
 	return StatusOK

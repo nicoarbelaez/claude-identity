@@ -89,6 +89,9 @@ func TestBundleStatus(t *testing.T) {
 	}{
 		{"valid", `{"refreshToken":"r","expiresAt":2000000}`, StatusOK},
 		{"access expired", `{"refreshToken":"r","expiresAt":500000}`, StatusAccessExpired},
+		{"inside the 5 minute buffer", `{"refreshToken":"r","expiresAt":1200000}`, StatusAccessExpired},
+		{"exactly at the buffer edge", `{"refreshToken":"r","expiresAt":1300000}`, StatusAccessExpired},
+		{"just outside the buffer", `{"refreshToken":"r","expiresAt":1300001}`, StatusOK},
 		{"empty refresh token, future expiry", `{"refreshToken":"","expiresAt":2000000}`, StatusNeedsLogin},
 		{"missing refresh token", `{"expiresAt":2000000}`, StatusNeedsLogin},
 		{"missing expiry", `{"refreshToken":"r"}`, StatusUnknown},
