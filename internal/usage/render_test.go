@@ -111,3 +111,28 @@ func TestLevelOf(t *testing.T) {
 		}
 	}
 }
+
+func TestAgeOf(t *testing.T) {
+	tests := []struct {
+		name string
+		ago  time.Duration
+		n    int
+		unit AgeUnit
+	}{
+		{"under two minutes", time.Minute, 0, AgeNone},
+		{"future", -time.Hour, 0, AgeNone},
+		{"minutes", 6 * time.Minute, 6, AgeMinutes},
+		{"hours", 3*time.Hour + 20*time.Minute, 3, AgeHours},
+		{"days", 50 * time.Hour, 2, AgeDays},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if n, unit := AgeOf(t0.Add(-tc.ago), t0); n != tc.n || unit != tc.unit {
+				t.Errorf("AgeOf = (%d, %v), want (%d, %v)", n, unit, tc.n, tc.unit)
+			}
+		})
+	}
+	if _, unit := AgeOf(time.Time{}, t0); unit != AgeNone {
+		t.Error("zero time must have no age")
+	}
+}

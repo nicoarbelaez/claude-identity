@@ -59,19 +59,46 @@ func Countdown(resetsAt, now time.Time) string {
 	return "<1m"
 }
 
-// Age renders how old a reading is ("6m ago", "3h ago", "2d ago"), or "" while
-// it is under two minutes old (or dated in the future).
-func Age(fetchedAt, now time.Time) string {
+// AgeUnit is the unit of an age returned by AgeOf.
+type AgeUnit int
+
+// Age units. AgeNone means the reading is too fresh (or too odd) to note.
+const (
+	AgeNone AgeUnit = iota
+	AgeMinutes
+	AgeHours
+	AgeDays
+)
+
+// AgeOf splits how old a reading is into a whole count and a unit, so callers
+// can word it in their own language. It reports AgeNone while the reading is
+// under two minutes old or dated in the future.
+func AgeOf(fetchedAt, now time.Time) (int, AgeUnit) {
 	d := now.Sub(fetchedAt)
 	switch {
 	case fetchedAt.IsZero() || d < 2*time.Minute:
-		return ""
+		return 0, AgeNone
 	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d/time.Minute))
+		return int(d / time.Minute), AgeMinutes
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d/time.Hour))
+		return int(d / time.Hour), AgeHours
 	}
-	return fmt.Sprintf("%dd ago", int(d/(24*time.Hour)))
+	return int(d / (24 * time.Hour)), AgeDays
+}
+
+// Age renders how old a reading is ("6m ago", "3h ago", "2d ago"), or "" while
+// it is under two minutes old (or dated in the future).
+func Age(fetchedAt, now time.Time) string {
+	n, unit := AgeOf(fetchedAt, now)
+	switch unit {
+	case AgeMinutes:
+		return fmt.Sprintf("%dm ago", n)
+	case AgeHours:
+		return fmt.Sprintf("%dh ago", n)
+	case AgeDays:
+		return fmt.Sprintf("%dd ago", n)
+	}
+	return ""
 }
 
 // Visible returns the windows whose reset is still ahead of now; a window past
