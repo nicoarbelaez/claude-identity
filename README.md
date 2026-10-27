@@ -182,13 +182,15 @@ The status column (and the `status` JSON field) is one of `ok`, `access_expired`
 `cid list` shows how much of each account's plan you have used:
 
 ```
-Profiles:
-● 1  work      me@example.com
-     5h    ██████████░░░░░░   62%  resets 2h 47m
-     week  ███░░░░░░░░░░░░░   18%  resets 5d 3h
-  2  personal  you@example.com  · 3h ago
-     5h    ░░░░░░░░░░░░░░░░    0%  resets 4h 10m
-     week  ███████░░░░░░░░░   41%  resets 1d 6h
+Accounts
+
+ ●  1  work      me@example.com   active
+       5h     ████████████████████░░░░░░░░░░░░    62%   resets 2h 47m
+       week   ██████░░░░░░░░░░░░░░░░░░░░░░░░░░    18%   resets 4d 21h
+
+ ○  2  personal  you@example.com  3h ago
+       5h     ████████░░░░░░░░░░░░░░░░░░░░░░░░    25%   resets 1h 2m
+       week   ████████████████████████████░░░░    88%   resets 1d 4h
 ```
 
 Each account gets a 5-hour bar and a weekly bar, the time until each window resets, and, when the reading is older than a few minutes, how long ago it was taken (`3h ago`). Windows that have already reset are not shown. Bars turn yellow and red as they fill when the terminal supports color (`NO_COLOR` turns it off).

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
@@ -68,24 +69,55 @@ func (r *rig) listLines(args ...string) []string {
 
 func TestListRendersNumberedRowsWithUsage(t *testing.T) {
 	r := usageRig(t)
-	r.record("a", listNow.Add(-3*time.Hour), map[string]usage.Window{
-		usage.FiveHour: win(25, 62*time.Minute), usage.SevenDay: win(18, 117*time.Hour)})
+	r.record("a", listNow.Add(-3*time.Hour), map[string]usage.Window{usage.FiveHour: win(25, 62*time.Minute)})
 	r.record("b", listNow.Add(-time.Minute), map[string]usage.Window{
 		usage.FiveHour: win(62, 167*time.Minute), usage.SevenDay: win(18, 117*time.Hour)})
 	want := []string{
-		"Profiles:",
-		"  1  a         a@example.com  · 3h ago",
-		"     5h    ████░░░░░░░░░░░░   25%  resets 1h 2m",
-		"     week  ███░░░░░░░░░░░░░   18%  resets 4d 21h",
-		"● 2  b         b@example.com",
-		"     5h    ██████████░░░░░░   62%  resets 2h 47m",
-		"     week  ███░░░░░░░░░░░░░   18%  resets 4d 21h",
-		"  3  client-x  x@client.com   login required",
+		"Accounts",
+		"",
+		" ○  1  a         a@example.com  3h ago",
+		"       5h     " + bar32(25) + "    25%   resets 1h 2m",
+		"",
+		" ●  2  b         b@example.com  active",
+		"       5h     " + bar32(62) + "    62%   resets 2h 47m",
+		"       week   " + bar32(18) + "    18%   resets 4d 21h",
+		"",
+		" ○  3  client-x  x@client.com   ✗ login required",
 	}
 	for _, args := range [][]string{nil, {"list"}} {
 		got := r.listLines(args...)
 		if strings.Join(got, "\n") != strings.Join(want, "\n") {
 			t.Errorf("args %v:\n%s\nwant:\n%s", args, strings.Join(got, "\n"), strings.Join(want, "\n"))
+		}
+	}
+}
+
+// bar32 is a 32-cell usage bar.
+func bar32(pct float64) string { return usage.Bar(pct, 32) }
+
+func TestListBarFollowsTheTerminalWidth(t *testing.T) {
+	r := usageRig(t)
+	r.record("b", listNow.Add(-time.Minute), map[string]usage.Window{usage.FiveHour: win(50, 167*time.Minute)})
+	cells := func(width int) int {
+		r.deps.Width = width
+		return strings.Count(r.stdoutAfter("list"), "█") + strings.Count(r.stdout.String(), "░")
+	}
+	for _, tc := range []struct{ width, want int }{
+		{0, 32},   // unknown (pipe, hook): the default
+		{300, 40}, // wide terminals stop at the maximum
+		{20, 12},  // narrow terminals stop at the minimum
+	} {
+		r.stdout.Reset()
+		if got := cells(tc.width); got != tc.want {
+			t.Errorf("width %d: %d cells, want %d", tc.width, got, tc.want)
+		}
+	}
+	// A terminal in between: no usage line is wider than the terminal.
+	r.stdout.Reset()
+	r.deps.Width = 70
+	for _, l := range strings.Split(r.stdoutAfter("list"), "\n") {
+		if n := utf8.RuneCountInString(l); n > 70 {
+			t.Errorf("line of %d cells exceeds the terminal: %q", n, l)
 		}
 	}
 }
@@ -103,11 +135,11 @@ func TestListDropsWindowsThatAlreadyReset(t *testing.T) {
 func TestListWithoutUsageShowsHintOnlyOnTheActiveRow(t *testing.T) {
 	r := usageRig(t)
 	got := r.listLines("list")
-	hint := "     " + r.msg(i18n.UsageHint)
+	hint := "       " + r.msg(i18n.UsageHint)
 	if n := strings.Count(strings.Join(got, "\n"), r.msg(i18n.UsageHint)); n != 1 {
 		t.Fatalf("hint shown %d times:\n%s", n, strings.Join(got, "\n"))
 	}
-	if got[3] != hint || !strings.HasPrefix(got[2], "● 2  b") {
+	if got[5] != hint || !strings.HasPrefix(got[4], " ●  2  b") {
 		t.Errorf("hint is not right under the active row:\n%s", strings.Join(got, "\n"))
 	}
 }

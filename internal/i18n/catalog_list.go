@@ -9,6 +9,7 @@ const (
 	UsageAgoHours      Key = "usage.ago_hours"
 	UsageAgoDays       Key = "usage.ago_days"
 	UsageHint          Key = "usage.hint"
+	UsageActive        Key = "usage.active"
 )
 
 var listEN = map[Key]string{
@@ -18,6 +19,7 @@ var listEN = map[Key]string{
 	UsageAgoMinutes:    "%dm ago",
 	UsageAgoHours:      "%dh ago",
 	UsageAgoDays:       "%dd ago",
+	UsageActive:        "active",
 	UsageHint:          "No usage recorded yet. Run `cid statusline install` to see plan usage here.",
 }
 
@@ -28,6 +30,7 @@ var listES = map[Key]string{
 	UsageAgoMinutes:    "hace %d min",
 	UsageAgoHours:      "hace %d h",
 	UsageAgoDays:       "hace %d d",
+	UsageActive:        "activa",
 	UsageHint:          "Aún no hay uso registrado. Ejecuta `cid statusline install` para ver aquí el uso del plan.",
 }
 

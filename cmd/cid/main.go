@@ -131,6 +131,7 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 		},
 		Stdin:  os.Stdin,
 		Color:  cli.UseColor(os.Stdout),
+		Width:  cli.TermWidth(os.Stdout),
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}, nil

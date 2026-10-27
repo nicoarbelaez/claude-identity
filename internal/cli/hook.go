@@ -70,6 +70,7 @@ func (a *app) hook() int {
 	d := a.Deps
 	d.Stdout, d.Stderr = &out, &errOut
 	d.Quiet = true
+	d.Width = 0
 	d.Color = false // the captured output is shown as plain text inside Claude Code
 	d.Login = hookLogin(d.Login)
 	if Run(d, args) != exitOK {

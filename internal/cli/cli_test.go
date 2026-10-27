@@ -110,8 +110,10 @@ func TestListShowsIndexNameEmailAndActiveMarker(t *testing.T) {
 	}
 	want := []string{
 		r.msg(i18n.ProfileListHeader),
-		"  1  a  a@example.com  " + r.msg(i18n.StatusAccessExpired),
-		"● 2  b  b@example.com  " + r.msg(i18n.StatusAccessExpired),
+		"",
+		" ○  1  a  a@example.com  ✗ " + r.msg(i18n.StatusAccessExpired),
+		"",
+		" ●  2  b  b@example.com  ✗ " + r.msg(i18n.StatusAccessExpired) + "  " + r.msg(i18n.UsageActive),
 	}
 	got := strings.Split(strings.TrimRight(r.stdout.String(), "\n"), "\n")
 	if strings.Join(got, "|") != strings.Join(want, "|") {
