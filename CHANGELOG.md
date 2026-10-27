@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.6.0...v0.7.0) (2026-10-27)
+
+
+### Features
+
+* uso por cuenta en /account, cid statusline y cambio de cuenta seguro ([#31](https://github.com/nicoarbelaez/claude-identity/issues/31)) ([8319a25](https://github.com/nicoarbelaez/claude-identity/commit/8319a2577093e741c3563308e9da71419583d44b))
+
 ## [0.6.0](https://github.com/nicoarbelaez/claude-identity/compare/v0.5.0...v0.6.0) (2026-10-26)
 
 
