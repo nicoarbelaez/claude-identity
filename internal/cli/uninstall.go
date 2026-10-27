@@ -83,7 +83,13 @@ func (a *app) uninstall(args []string) int {
 	keepStatuslineBackup := false
 	if a.Config.ClaudeDir != "" {
 		switch out, err := a.restoreStatusline(); {
-		case err != nil && !errors.Is(err, errBadSettings):
+		case err != nil && errors.Is(err, errBadSettings):
+			// Not restorable now: keep the saved copy so the user can restore later.
+			if _, statErr := os.Stat(a.backupPath()); statErr == nil {
+				keepStatuslineBackup = true
+				a.printf(a.Stderr, "%s\n", a.t(i18n.StatuslineBackupKept, a.settingsPath(), a.backupPath()))
+			}
+		case err != nil:
 			fail(a.settingsPath(), err)
 			keepStatuslineBackup = true
 		case err == nil && out == restored:

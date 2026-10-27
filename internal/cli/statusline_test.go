@@ -646,3 +646,42 @@ func TestStatuslineDoesNotWaitForeverOnALockedStore(t *testing.T) {
 		t.Errorf("took %v: the locked store delayed the status line", took)
 	}
 }
+
+func TestStatuslineUninstallDistinguishesNoPreviousFromABrokenBackup(t *testing.T) {
+	tests := []struct {
+		name, backup string
+		wantRestored bool
+	}{
+		{"explicitly none", `{"hadStatusLine": false}`, true},
+		{"empty object has no verdict", `{}`, false},
+		{"had one but the text is missing", `{"hadStatusLine": true}`, false},
+		{"not json", `garbage`, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _ := newStatuslineRig(t)
+			r.writeSettings(`{"theme":"dark"}`)
+			if code := r.run("statusline", "install"); code != 0 {
+				t.Fatal(r.stderr.String())
+			}
+			if err := os.WriteFile(r.backupPath(), []byte(tc.backup), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			installed, _ := os.ReadFile(r.settingsPath())
+			code := r.run("statusline", "uninstall")
+			_, has := r.readSettings()["statusLine"]
+			if tc.wantRestored {
+				if code != 0 || has {
+					t.Errorf("exit %d, statusLine present=%v: want the key removed", code, has)
+				}
+				return
+			}
+			if code != exitRuntime || !has {
+				t.Errorf("exit %d, statusLine present=%v: a backup without a verdict must not change settings", code, has)
+			}
+			if b, _ := os.ReadFile(r.settingsPath()); !bytes.Equal(b, installed) {
+				t.Error("settings changed")
+			}
+		})
+	}
+}

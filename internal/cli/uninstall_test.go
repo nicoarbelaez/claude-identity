@@ -282,3 +282,37 @@ func TestHookRejectsUninstall(t *testing.T) {
 		t.Error("hook must not run uninstall")
 	}
 }
+
+func TestUninstallKeepsStatuslineBackupWhenSettingsAreUnreadable(t *testing.T) {
+	r, _, _ := uninstallRig(t)
+	r.deps.Statusline = StatuslineDeps{Executable: "/opt/cid/cid"}
+	r.writeSettings(prevSettings)
+	if code := r.run("statusline", "install"); code != 0 {
+		t.Fatal(r.stderr.String())
+	}
+	r.writeSettings(`{"statusLine": `) // the user's edit left settings.json invalid
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if !exists(r.backupPath()) {
+		t.Fatal("the saved status line was deleted although it could not be restored")
+	}
+	if want := r.msg(i18n.StatuslineBackupKept, r.settingsPath(), r.backupPath()); !strings.Contains(r.stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to contain %q", r.stderr, want)
+	}
+	if b, _ := os.ReadFile(r.settingsPath()); string(b) != `{"statusLine": ` {
+		t.Errorf("settings.json was modified: %q", b)
+	}
+}
+
+func TestUninstallWithBadSettingsAndNoBackupStaysQuiet(t *testing.T) {
+	r, _, _ := uninstallRig(t)
+	r.deps.Statusline = StatuslineDeps{Executable: "/opt/cid/cid"}
+	r.writeSettings(`not json`)
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if r.stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want nothing: there was no saved status line", r.stderr)
+	}
+}

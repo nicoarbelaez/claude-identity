@@ -194,7 +194,9 @@ func runArgv(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // statuslineBackup is what install saves in cid's own state so uninstall can
 // put the user's previous statusLine back exactly.
 type statuslineBackup struct {
-	HadStatusLine bool   `json:"hadStatusLine"`
+	// HadStatusLine is a pointer so a backup that does not say either way
+	// (a missing field) is told apart from an explicit "there was none".
+	HadStatusLine *bool  `json:"hadStatusLine"`
 	StatusLine    string `json:"statusLine,omitempty"` // the original JSON text, byte for byte
 }
 
@@ -240,7 +242,7 @@ func (a *app) statuslineInstall() int {
 		sl.set("command", jsonString(wrapperCommand(a.Statusline.Executable, nil)))
 	}
 
-	b, err := json.MarshalIndent(statuslineBackup{HadStatusLine: has, StatusLine: string(cur)}, "", "  ")
+	b, err := json.MarshalIndent(statuslineBackup{HadStatusLine: &has, StatusLine: string(cur)}, "", "  ")
 	if err != nil {
 		return a.fail(err, "")
 	}
@@ -276,7 +278,10 @@ func (a *app) statuslineUninstall() int {
 type restoreOutcome int
 
 const (
-	restored restoreOutcome = iota
+	// restoreFailed is the zero value, returned together with an error, so it
+	// can never be mistaken for a successful restore.
+	restoreFailed restoreOutcome = iota
+	restored
 	restoreNotOurs
 	restoreNoBackup
 )
@@ -286,7 +291,7 @@ const (
 func (a *app) restoreStatusline() (restoreOutcome, error) {
 	f, err := loadSettings(a.settingsPath())
 	if err != nil {
-		return 0, err
+		return restoreFailed, err
 	}
 	cur, has := f.obj.get("statusLine")
 	if !has || !a.wrapperIn(cur) {
@@ -294,19 +299,19 @@ func (a *app) restoreStatusline() (restoreOutcome, error) {
 	}
 	data, err := os.ReadFile(a.backupPath())
 	var bk statuslineBackup
-	if err != nil || json.Unmarshal(data, &bk) != nil || (bk.HadStatusLine && len(bk.StatusLine) == 0) {
+	if err != nil || json.Unmarshal(data, &bk) != nil || bk.HadStatusLine == nil || (*bk.HadStatusLine && len(bk.StatusLine) == 0) {
 		return restoreNoBackup, nil
 	}
-	if bk.HadStatusLine {
+	if *bk.HadStatusLine {
 		f.obj.set("statusLine", json.RawMessage(bk.StatusLine))
 	} else {
 		f.obj.delete("statusLine")
 	}
 	if err := f.save(); err != nil {
-		return 0, err
+		return restoreFailed, err
 	}
 	if err := os.Remove(a.backupPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return 0, err
+		return restoreFailed, err
 	}
 	return restored, nil
 }

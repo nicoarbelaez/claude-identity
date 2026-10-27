@@ -9,6 +9,7 @@ const (
 	StatuslineNoBackup    Key = "statusline.no_backup"
 	StatuslineBadSettings Key = "statusline.bad_settings"
 	StatuslineUnsupported Key = "statusline.unsupported"
+	StatuslineBackupKept  Key = "statusline.backup_kept"
 )
 
 var statuslineEN = map[Key]string{
@@ -19,6 +20,7 @@ var statuslineEN = map[Key]string{
 	StatuslineNoBackup:    "The saved copy of the previous status line is missing; nothing changed.",
 	StatuslineBadSettings: "%s is not a valid JSON object; nothing changed.",
 	StatuslineUnsupported: "The current status line cannot be wrapped safely (unexpected shape or shell syntax); nothing changed.",
+	StatuslineBackupKept:  "%s is not readable, so the status line was not restored; the saved copy of the previous one stays in %s.",
 }
 
 var statuslineES = map[Key]string{
@@ -29,6 +31,7 @@ var statuslineES = map[Key]string{
 	StatuslineNoBackup:    "Falta la copia guardada de la línea de estado anterior; no se cambió nada.",
 	StatuslineBadSettings: "%s no es un objeto JSON válido; no se cambió nada.",
 	StatuslineUnsupported: "La línea de estado actual no se puede envolver de forma segura (formato inesperado o sintaxis de shell); no se cambió nada.",
+	StatuslineBackupKept:  "%s no se puede leer, así que no se restauró la línea de estado; la copia guardada de la anterior queda en %s.",
 }
 
 func init() {
