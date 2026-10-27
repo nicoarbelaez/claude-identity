@@ -514,8 +514,16 @@ func (f *settingsFile) save() error {
 			return fmt.Errorf("back up settings.json: %w", err)
 		}
 	}
+	// WriteAtomic creates 0600 files; keep the mode the user had.
+	var mode os.FileMode
+	if st, err := os.Stat(f.path); err == nil {
+		mode = st.Mode().Perm()
+	}
 	if err := fsutil.WriteAtomic(f.path, f.obj.encode()); err != nil {
 		return fmt.Errorf("write settings.json: %w", err)
+	}
+	if mode != 0 {
+		_ = os.Chmod(f.path, mode) // best effort: the content is already saved
 	}
 	return nil
 }
