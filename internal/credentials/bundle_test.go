@@ -108,3 +108,26 @@ func TestBundleStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestBundleWiped(t *testing.T) {
+	tests := []struct {
+		name  string
+		oauth string
+		want  bool
+	}{
+		{"both tokens empty", `{"accessToken":"","refreshToken":"","expiresAt":0}`, true},
+		{"empty object", `{}`, true},
+		{"json null", `null`, true},
+		{"unreadable", `nope`, true},
+		{"access only", `{"accessToken":"a","refreshToken":""}`, false},
+		{"refresh only", `{"accessToken":"","refreshToken":"r"}`, false},
+		{"both", `{"accessToken":"a","refreshToken":"r"}`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (Bundle{ClaudeAIOAuth: json.RawMessage(tt.oauth)}).Wiped(); got != tt.want {
+				t.Errorf("Wiped() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

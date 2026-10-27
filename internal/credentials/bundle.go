@@ -42,6 +42,21 @@ func (b Bundle) ExpiresAt() int64 {
 	return o.ExpiresAt
 }
 
+// Wiped reports whether the bundle holds no usable tokens: both the access and
+// the refresh token are empty, or the OAuth block cannot be read at all. Such a
+// bundle is what Claude Code leaves behind after a failed refresh or a logout,
+// and it must never overwrite a saved profile.
+func (b Bundle) Wiped() bool {
+	var o struct {
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if json.Unmarshal(b.ClaudeAIOAuth, &o) != nil {
+		return true
+	}
+	return o.AccessToken == "" && o.RefreshToken == ""
+}
+
 // Status is a local, best-effort view of whether a bundle can still sign in.
 type Status string
 
