@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
@@ -17,6 +18,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/login"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/version"
 )
 
@@ -45,6 +47,12 @@ type Swapper interface {
 	Status(name string, active bool) credentials.Status
 }
 
+// UsagePort is the usage cache as the CLI uses it. A nil port disables it.
+type UsagePort interface {
+	Record(profile string, windows map[string]usage.Window, now time.Time) error
+	Forget(profile string) error
+}
+
 // Config describes where cid and Claude Code keep their data (for `cid config`).
 type Config struct {
 	ProfilesPath string
@@ -61,6 +69,8 @@ type Deps struct {
 	Swap     Swapper
 	Lang     i18n.Lang
 	Config   Config
+	// Usage is the per-profile usage cache; nil disables recording and cleanup.
+	Usage UsagePort
 	// Settings is the config.json store behind `cid config`; nil disables it.
 	Settings SettingsPort
 	// Uninstall holds the collaborators of `cid uninstall`.
@@ -348,6 +358,9 @@ func (a *app) remove(args []string) int {
 			ref = p.Name
 		}
 		return a.fail(err, ref)
+	}
+	if a.Usage != nil {
+		_ = a.Usage.Forget(p.Name) // best effort: a stale reading is harmless
 	}
 	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileRemoved, p.Name))
 	return exitOK

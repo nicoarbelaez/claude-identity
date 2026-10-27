@@ -17,6 +17,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/settings"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
 	"github.com/nicoarbelaez/claude-identity/internal/update"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -98,6 +99,7 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 	return cli.Deps{
 		Profiles: store,
 		Swap:     swap.New(store, kv, live, lock),
+		Usage:    usage.NewStore(usage.PathFor(profilesPath)).WithNotifier(notify),
 		Lang:     lang,
 		Settings: sett,
 		Login:    login.ExecRunner{},

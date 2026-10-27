@@ -12,6 +12,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/fsutil"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/pathenv"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -84,6 +85,11 @@ func (a *app) uninstall(args []string) int {
 		files = append(files, fileFamily(a.Config.ProfilesPath)...)
 	}
 	files = append(files, fileFamily(a.Config.ConfigPath)...)
+	if a.Config.ProfilesPath != "" {
+		cache := usage.PathFor(a.Config.ProfilesPath)
+		files = append(files, fileFamily(cache)...)
+		files = append(files, usage.LockFor(cache))
+	}
 	files = append(files, u.LockPath)
 	for _, path := range files {
 		if path == "" {

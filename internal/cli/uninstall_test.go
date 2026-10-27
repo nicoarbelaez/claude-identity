@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -94,6 +96,25 @@ func TestUninstallYesRemovesEverything(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestUninstallRemovesUsageFiles(t *testing.T) {
+	r, _, _ := uninstallRig(t)
+	cfgDir := filepath.Dir(r.deps.Config.ProfilesPath)
+	w := map[string]usage.Window{usage.FiveHour: {PercentUsed: 5, ResetsAt: time.Now().Add(time.Hour)}}
+	if err := r.usage.Record("a", w, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	cache := usage.PathFor(r.deps.Config.ProfilesPath)
+	if !exists(cache) || !exists(usage.LockFor(cache)) {
+		t.Fatal("precondition: usage cache and lock should exist after Record")
+	}
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if exists(cache) || exists(usage.LockFor(cache)) || exists(cfgDir) {
+		t.Errorf("usage files or config dir left behind in %s", cfgDir)
 	}
 }
 

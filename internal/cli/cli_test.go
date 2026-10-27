@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -23,6 +25,7 @@ type rig struct {
 	live   *claudecfg.FileStore
 	prof   *profile.Store
 	vault  *vault.MemoryVault
+	usage  *usage.Store
 	deps   Deps
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
@@ -38,10 +41,12 @@ func newRig(t *testing.T) *rig {
 	profilesPath := filepath.Join(dir, "cid", "profiles.json")
 	p := profile.NewStore(profilesPath)
 	svc := swap.New(p, v, live, filepath.Join(dir, "cid", "cid.lock"))
-	r := &rig{t: t, live: live, prof: p, vault: v, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	us := usage.NewStore(usage.PathFor(profilesPath))
+	r := &rig{t: t, live: live, prof: p, vault: v, usage: us, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
 	r.deps = Deps{
 		Profiles: p,
 		Swap:     svc,
+		Usage:    us,
 		Lang:     i18n.EN,
 		GOOS:     "linux",
 		Config:   Config{ProfilesPath: profilesPath, ClaudeDir: filepath.Dir(paths.Credentials)},
@@ -329,6 +334,21 @@ func TestRemove(t *testing.T) {
 	}
 	if _, err := r.vault.Get("a"); !errors.Is(err, vault.ErrNotFound) {
 		t.Errorf("secret not deleted: %v", err)
+	}
+}
+
+func TestRemoveForgetsUsageOfThatProfileOnly(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	w := map[string]usage.Window{usage.FiveHour: {PercentUsed: 5, ResetsAt: time.Now().Add(time.Hour)}}
+	_ = r.usage.Record("a", w, time.Now())
+	_ = r.usage.Record("b", w, time.Now())
+	if code := r.run("remove", "a"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	all, _ := r.usage.All()
+	if _, ok := all["a"]; ok || len(all) != 1 {
+		t.Errorf("usage after remove = %+v, want only b", all)
 	}
 }
 
