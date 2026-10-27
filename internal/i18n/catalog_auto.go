@@ -20,6 +20,12 @@ const (
 	AutoReserveSet        Key = "auto.reserve_set"
 	AutoDefaultsSet       Key = "auto.defaults_set"
 	AutoInvalidPercentage Key = "auto.invalid_percentage"
+	AutoNoticeSwitch      Key = "auto.notice_switch"
+	AutoNoticeFailed      Key = "auto.notice_failed"
+	AutoNoticeNoCandidate Key = "auto.notice_no_candidate"
+	AutoHistoryHeader     Key = "auto.history_header"
+	AutoHistoryLine       Key = "auto.history_line"
+	AutoHistoryFailed     Key = "auto.history_failed"
 )
 
 var autoEN = map[Key]string{
@@ -41,6 +47,12 @@ var autoEN = map[Key]string{
 	AutoReserveSet:        "Account %q is now a reserve.",
 	AutoDefaultsSet:       "Defaults: 5h %d%%, week %d%%.",
 	AutoInvalidPercentage: "Invalid percentage %q: use a whole number from 1 to 100.",
+	AutoNoticeSwitch:      "⇄ %s → %s (%s)",
+	AutoNoticeFailed:      "⇄ auto-switch to %s failed; staying on %s",
+	AutoNoticeNoCandidate: "⇄ %s is near its limit and no other account can take over",
+	AutoHistoryHeader:     "Recent automatic switches:",
+	AutoHistoryLine:       "  %s  %s → %s (%s)",
+	AutoHistoryFailed:     "  %s  %s → %s failed: %s",
 }
 
 var autoES = map[Key]string{
@@ -62,6 +74,12 @@ var autoES = map[Key]string{
 	AutoReserveSet:        "La cuenta %q es ahora una reserva.",
 	AutoDefaultsSet:       "Valores por defecto: 5h %d%%, semana %d%%.",
 	AutoInvalidPercentage: "Porcentaje no válido %q: usa un número entero de 1 a 100.",
+	AutoNoticeSwitch:      "⇄ %s → %s (%s)",
+	AutoNoticeFailed:      "⇄ el cambio automático a %s falló; sigues en %s",
+	AutoNoticeNoCandidate: "⇄ %s está cerca de su límite y ninguna otra cuenta puede tomar el relevo",
+	AutoHistoryHeader:     "Últimos cambios automáticos:",
+	AutoHistoryLine:       "  %s  %s → %s (%s)",
+	AutoHistoryFailed:     "  %s  %s → %s falló: %s",
 }
 
 func init() {
