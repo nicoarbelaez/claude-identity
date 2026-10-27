@@ -359,3 +359,33 @@ func TestHookAllowsAutoCommands(t *testing.T) {
 		t.Errorf("auto status through the hook: %q", b.Reason)
 	}
 }
+
+func TestAutoStatusShowsRecentHistory(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	at := time.Date(2026, 10, 27, 12, 30, 0, 0, time.UTC)
+	err := r.autoState.Update(func(s *auto.State) {
+		for i := range 7 {
+			s.AddHistory(auto.HistoryEntry{At: at.Add(time.Duration(i) * time.Hour), From: "a", To: "b", Window: auto.Window5h, Pct: 91})
+		}
+		s.AddHistory(auto.HistoryEntry{At: at.Add(8 * time.Hour), From: "b", To: "a", Error: "boom"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := r.mustRun("auto")
+	if !strings.Contains(out, r.msg(i18n.AutoHistoryHeader)) {
+		t.Errorf("stdout %q misses the history header", out)
+	}
+	failed := r.msg(i18n.AutoHistoryFailed, at.Add(8*time.Hour).Local().Format("2006-01-02 15:04"), "b", "a", "boom")
+	ok := r.msg(i18n.AutoHistoryLine, at.Add(6*time.Hour).Local().Format("2006-01-02 15:04"), "a", "b", "5h 91%")
+	if !strings.Contains(out, failed) || !strings.Contains(out, ok) {
+		t.Errorf("stdout %q misses %q or %q", out, failed, ok)
+	}
+	if strings.Count(out, "→") != 5 {
+		t.Errorf("want the 5 most recent entries, got:\n%s", out)
+	}
+	if strings.Index(out, failed) > strings.Index(out, ok) {
+		t.Error("newest entry must come first")
+	}
+}

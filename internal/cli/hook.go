@@ -41,7 +41,8 @@ type hookBlock struct {
 
 // hook implements the internal `cid hook` command. The plugin registers it as a
 // UserPromptExpansion hook so `/account ...` is answered with the cid output
-// and no model turn. Anything that is not an /account expansion, or is not
+// and no model turn, and as a UserPromptSubmit hook that applies a pending
+// automatic account switch before the prompt is sent. Anything that is not an /account expansion, or is not
 // valid JSON, passes through silently (exit 0, no output).
 func (a *app) hook() int {
 	if a.Stdin == nil {
@@ -52,7 +53,14 @@ func (a *app) hook() int {
 		return exitOK
 	}
 	var in hookInput
-	if json.Unmarshal(raw, &in) != nil || in.Event != "UserPromptExpansion" {
+	if json.Unmarshal(raw, &in) != nil {
+		return exitOK
+	}
+	if in.Event == "UserPromptSubmit" {
+		a.applyAutoPending() // silent: it never blocks or alters the prompt
+		return exitOK
+	}
+	if in.Event != "UserPromptExpansion" {
 		return exitOK
 	}
 	if in.CommandName != "account" && !strings.HasSuffix(in.CommandName, ":account") {
