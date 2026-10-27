@@ -191,7 +191,8 @@ func (b brokenUsage) Record(string, map[string]usage.Window, time.Time) error {
 	}
 	return errors.New("disk on fire")
 }
-func (brokenUsage) Forget(string) error { return nil }
+func (brokenUsage) Forget(string) error                  { return nil }
+func (brokenUsage) All() (map[string]usage.Entry, error) { return nil, errors.New("disk on fire") }
 
 func TestStatuslineFailsOpen(t *testing.T) {
 	for _, panics := range []bool{false, true} {

@@ -126,6 +126,7 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 			Plugin:  update.PluginRefresher{Runner: update.ExecRunner{}},
 		},
 		Stdin:  os.Stdin,
+		Color:  cli.UseColor(os.Stdout),
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}, nil

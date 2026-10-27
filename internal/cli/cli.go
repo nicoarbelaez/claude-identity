@@ -49,6 +49,7 @@ type Swapper interface {
 
 // UsagePort is the usage cache as the CLI uses it. A nil port disables it.
 type UsagePort interface {
+	All() (map[string]usage.Entry, error)
 	Record(profile string, windows map[string]usage.Window, now time.Time) error
 	Forget(profile string) error
 }
@@ -88,6 +89,11 @@ type Deps struct {
 	// RemoveAll deletes the temporary login directory; nil means os.RemoveAll.
 	// Tests inject a failing one.
 	RemoveAll func(path string) error
+	// Now returns the current time; nil means time.Now (or Statusline.Now).
+	Now func() time.Time
+	// Color enables ANSI colors in `cid list`. Set it only when Stdout is a
+	// terminal (see UseColor); the hook leaves it off.
+	Color bool
 	// Quiet suppresses progress lines such as "Starting the login..." (hook mode).
 	Quiet bool
 	// GOOS is the operating system; empty means runtime.GOOS. Tests set it.
@@ -177,45 +183,6 @@ func parse(name string, args []string, withJSON bool, positional int) (asJSON bo
 		return false, nil, false
 	}
 	return asJSON, fs.Args(), true
-}
-
-func (a *app) list(args []string) int {
-	asJSON, _, ok := parse("list", args, true, 0)
-	if !ok {
-		return a.usageError("")
-	}
-	ps, err := a.Profiles.List()
-	if err != nil {
-		return a.fail(err, "")
-	}
-	activeName, err := a.activeName()
-	if err != nil {
-		return a.fail(err, "")
-	}
-	if asJSON {
-		out := make([]jsonProfile, 0, len(ps))
-		for _, p := range ps {
-			active := p.Name == activeName
-			out = append(out, toJSON(p, active, a.Swap.Status(p.Name, active)))
-		}
-		return a.writeJSON(out)
-	}
-	if len(ps) == 0 {
-		a.printf(a.Stdout, "%s\n", a.t(i18n.ListEmpty))
-		return exitOK
-	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileListHeader))
-	for _, p := range ps {
-		marker := " "
-		active := p.Name == activeName
-		if active {
-			marker = "*"
-		}
-		status := a.statusLabel(a.Swap.Status(p.Name, active))
-		line := fmt.Sprintf("%s %d  %s  %s  %s", marker, p.Index, p.Name, p.Email, status)
-		a.printf(a.Stdout, "%s\n", strings.TrimRight(line, " "))
-	}
-	return exitOK
 }
 
 // statusLabel returns the localized, short label for a token status.
@@ -387,6 +354,8 @@ type jsonProfile struct {
 	Email  string `json:"email"`
 	Active bool   `json:"active"`
 	Status string `json:"status"`
+	// Usage is the last plan-usage reading; omitted when none was recorded.
+	Usage *jsonUsage `json:"usage,omitempty"`
 }
 
 func toJSON(p profile.Profile, active bool, status credentials.Status) jsonProfile {

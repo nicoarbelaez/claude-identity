@@ -170,7 +170,7 @@ Inside Claude Code, `/account add` and `/account relogin` run the same login fro
 | `cid update` | Update the `cid` binary (checksum verified) and the `account-switch` plugin to the latest release. See [Updating](#updating). |
 | `cid version` | Show the version, and a note when a newer release exists. |
 
-The text output of `cid list` and `cid current` is meant for people and may change between versions; scripts should use `--json`. `--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). Exit codes: `0` success, `1` runtime error, `2` usage error.
+The text output of `cid list` and `cid current` is meant for people and may change between versions; scripts should use `--json`. `--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). `cid list --json` adds a `usage` object to each profile that has a recorded reading (the key is left out when there is none): `{"fetchedAt": "2026-03-04T09:58:30Z", "ageSeconds": 90, "windows": [{"kind": "five_hour", "percentUsed": 62, "resetsAt": "2026-03-04T12:47:00Z"}]}`. `kind` is `five_hour` or `seven_day`, and `windows` lists only the windows whose reset is still ahead (it can be empty). Exit codes: `0` success, `1` runtime error, `2` usage error.
 
 ### Token status
 

@@ -102,13 +102,14 @@ func TestListEmpty(t *testing.T) {
 func TestListShowsIndexNameEmailAndActiveMarker(t *testing.T) {
 	r := newRig(t)
 	r.twoProfiles()
+	r.deps.Usage = nil // no usage cache: no usage lines and no hint
 	if code := r.run(); code != 0 {
 		t.Fatalf("exit %d: %s", code, r.stderr)
 	}
 	want := []string{
 		r.msg(i18n.ProfileListHeader),
 		"  1  a  a@example.com  " + r.msg(i18n.StatusAccessExpired),
-		"* 2  b  b@example.com  " + r.msg(i18n.StatusAccessExpired),
+		"● 2  b  b@example.com  " + r.msg(i18n.StatusAccessExpired),
 	}
 	got := strings.Split(strings.TrimRight(r.stdout.String(), "\n"), "\n")
 	if strings.Join(got, "|") != strings.Join(want, "|") {
@@ -129,7 +130,7 @@ func TestListJSON(t *testing.T) {
 	if err := json.Unmarshal(r.stdout.Bytes(), &got); err != nil {
 		t.Fatalf("invalid json %q: %v", r.stdout, err)
 	}
-	want := []jsonProfile{{1, "a", "a@example.com", false, "access_expired"}, {2, "b", "b@example.com", true, "access_expired"}}
+	want := []jsonProfile{{Index: 1, Name: "a", Email: "a@example.com", Status: "access_expired"}, {Index: 2, Name: "b", Email: "b@example.com", Active: true, Status: "access_expired"}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
@@ -412,7 +413,7 @@ func TestCurrent(t *testing.T) {
 	if err := json.Unmarshal(r.stdout.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got != (jsonProfile{2, "b", "b@example.com", true, "access_expired"}) {
+	if got != (jsonProfile{Index: 2, Name: "b", Email: "b@example.com", Active: true, Status: "access_expired"}) {
 		t.Errorf("got %+v", got)
 	}
 	if out := r.run("current"); out != 0 || !strings.Contains(r.stdout.String(), r.msg(i18n.CurrentStatus, r.msg(i18n.StatusAccessExpired))) {
