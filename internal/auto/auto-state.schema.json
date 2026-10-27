@@ -26,6 +26,22 @@
         "until": { "type": "string" }
       }
     },
-    "lastNoCandidateAt": { "type": "string" }
+    "lastNoCandidateAt": { "type": "string" },
+    "history": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["at", "from", "to"],
+        "properties": {
+          "at": { "type": "string" },
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "reason": { "type": "string" },
+          "window": { "type": "string" },
+          "pct": { "type": "number" },
+          "error": { "type": "string" }
+        }
+      }
+    }
   }
 }

@@ -25,6 +25,29 @@ type Notice struct {
 	Until time.Time `json:"until"`
 }
 
+// MaxHistory is how many switch records the state keeps.
+const MaxHistory = 20
+
+// HistoryEntry is one automatic switch that was applied or that failed.
+type HistoryEntry struct {
+	At     time.Time `json:"at"`
+	From   string    `json:"from"`
+	To     string    `json:"to"`
+	Reason string    `json:"reason,omitempty"`
+	Window string    `json:"window,omitempty"`
+	Pct    float64   `json:"pct,omitempty"`
+	// Error is set when the switch failed; empty means it was applied.
+	Error string `json:"error,omitempty"`
+}
+
+// AddHistory appends e and keeps only the last MaxHistory entries.
+func (s *State) AddHistory(e HistoryEntry) {
+	s.History = append(s.History, e)
+	if n := len(s.History); n > MaxHistory {
+		s.History = append([]HistoryEntry(nil), s.History[n-MaxHistory:]...)
+	}
+}
+
 // State is the content of auto-state.json: what was decided, not what the user
 // configured.
 type State struct {
@@ -35,6 +58,8 @@ type State struct {
 	Notice       *Notice   `json:"notice"`
 	// LastNoCandidateAt is when the user was last told that nobody can take over.
 	LastNoCandidateAt time.Time `json:"lastNoCandidateAt,omitzero"`
+	// History is a small log of applied and failed switches, oldest first.
+	History []HistoryEntry `json:"history,omitempty"`
 }
 
 // StateStore persists State in auto-state.json.

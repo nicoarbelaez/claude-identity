@@ -325,3 +325,29 @@ func TestStoresShareTheLockWithoutBlockingEachOther(t *testing.T) {
 		t.Errorf("lock file missing: %v", err)
 	}
 }
+
+func TestStateHistoryKeepsTheLastEntries(t *testing.T) {
+	s := NewStateStore(filepath.Join(t.TempDir(), "auto-state.json"))
+	base := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	for i := range MaxHistory + 5 {
+		err := s.Update(func(st *State) {
+			st.AddHistory(HistoryEntry{At: base.Add(time.Duration(i) * time.Minute), From: "a", To: "b", Reason: ReasonThreshold, Window: Window5h, Pct: 91})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	st, err := s.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.History) != MaxHistory {
+		t.Fatalf("history len = %d, want %d", len(st.History), MaxHistory)
+	}
+	if want := base.Add(5 * time.Minute); !st.History[0].At.Equal(want) {
+		t.Errorf("oldest kept = %v, want %v", st.History[0].At, want)
+	}
+	if want := base.Add(time.Duration(MaxHistory+4) * time.Minute); !st.History[MaxHistory-1].At.Equal(want) {
+		t.Errorf("newest = %v, want %v", st.History[MaxHistory-1].At, want)
+	}
+}
