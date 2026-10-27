@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/nicoarbelaez/claude-identity/internal/cclock"
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
@@ -515,6 +517,8 @@ func TestRuntimeErrorMapping(t *testing.T) {
 	}{
 		{"unknown live account", swap.ErrUnknownLiveAccount, func(r *rig) string { return r.msg(i18n.LiveAccountUnknown) }},
 		{"lock timeout", swap.ErrLockTimeout, func(r *rig) string { return r.msg(i18n.LockTimeout) }},
+		{"claude code lock", fmt.Errorf("take lock: %w", cclock.ErrTimeout), func(r *rig) string { return r.msg(i18n.ClaudeBusy) }},
+		{"rollback failed", &swap.RollbackError{Err: swap.ErrVerify, Rollback: errors.New("disk")}, func(r *rig) string { return r.msg(i18n.SwitchRolledBack) }},
 		{"no credentials", claudecfg.ErrNoCredentials, func(r *rig) string { return r.msg(i18n.NoLiveLogin) }},
 		{"generic", errors.New("boom"), func(r *rig) string { return r.msg(i18n.GenericError, "boom") }},
 	}

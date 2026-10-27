@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/nicoarbelaez/claude-identity/internal/cclock"
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/cli"
 	"github.com/nicoarbelaez/claude-identity/internal/fsutil"
@@ -83,6 +84,7 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 		return cli.Deps{}, fmt.Errorf("locate home dir: %w", err)
 	}
 	paths := claudecfg.ResolvePaths(home)
+	ccLocks := cclock.Set{Dirs: cclock.ResolveDirs(home)}
 	live, err := claudecfg.Open(runtime.GOOS, claudecfg.ExecRunner{}, paths)
 	if err != nil {
 		return cli.Deps{}, err
@@ -95,10 +97,12 @@ func wire(lang i18n.Lang, profilesPath, configPath string, sett *settings.Store,
 	if gh, err := update.NewGitHubUpdater(); err == nil {
 		updater = gh
 	}
+	svc := swap.New(store, kv, live, lock)
+	svc.CCLocks = ccLocks
 	exe, _ := os.Executable() // empty on failure: uninstall then skips the binary-specific steps
 	return cli.Deps{
 		Profiles: store,
-		Swap:     swap.New(store, kv, live, lock),
+		Swap:     svc,
 		Usage:    usage.NewStore(usage.PathFor(profilesPath)).WithNotifier(notify),
 		Lang:     lang,
 		Settings: sett,

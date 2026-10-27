@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicoarbelaez/claude-identity/internal/cclock"
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
@@ -380,6 +381,7 @@ func (a *app) fail(err error, arg string) int {
 	var mismatch *swap.EmailMismatchError
 	var noEmail *swap.NoStoredEmailError
 	var notUpdated *swap.ProfileNotUpdatedError
+	var rollback *swap.RollbackError
 	switch {
 	case errors.As(err, &noEmail):
 		msg = a.t(i18n.ReloginNoEmail, noEmail.Name, noEmail.Name)
@@ -399,6 +401,10 @@ func (a *app) fail(err error, arg string) int {
 		msg = a.t(i18n.RemoveActive, arg)
 	case errors.Is(err, swap.ErrUnknownLiveAccount):
 		msg = a.t(i18n.LiveAccountUnknown)
+	case errors.Is(err, cclock.ErrTimeout):
+		msg = a.t(i18n.ClaudeBusy)
+	case errors.As(err, &rollback):
+		msg = a.t(i18n.SwitchRolledBack)
 	case errors.Is(err, swap.ErrLockTimeout):
 		msg = a.t(i18n.LockTimeout)
 	case errors.Is(err, claudecfg.ErrNoCredentials):
