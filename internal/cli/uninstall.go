@@ -12,6 +12,7 @@ import (
 	"github.com/nicoarbelaez/claude-identity/internal/fsutil"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/pathenv"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -77,6 +78,26 @@ func (a *app) uninstall(args []string) int {
 		}
 		a.printf(a.Stdout, "%s\n", a.t(i18n.UninstallProfile, p.Name))
 	}
+	// A status line still wrapped by cid would point at a binary that is going
+	// away, so put the previous one back while its saved copy still exists.
+	keepStatuslineBackup := false
+	if a.Config.ClaudeDir != "" {
+		switch out, err := a.restoreStatusline(); {
+		case err != nil && errors.Is(err, errBadSettings):
+			// Not restorable now: keep the saved copy so the user can restore later.
+			if _, statErr := os.Stat(a.backupPath()); statErr == nil {
+				keepStatuslineBackup = true
+				a.printf(a.Stderr, "%s\n", a.t(i18n.StatuslineBackupKept, a.settingsPath(), a.backupPath()))
+			}
+		case err != nil:
+			fail(a.settingsPath(), err)
+			keepStatuslineBackup = true
+		case err == nil && out == restored:
+			a.printf(a.Stdout, "%s\n", a.t(i18n.StatuslineRemoved, a.settingsPath()))
+		case err == nil && out == restoreNoBackup:
+			a.printf(a.Stderr, "%s\n", a.t(i18n.StatuslineNoBackup))
+		}
+	}
 	// Keep the profiles file (and its backups) while keyring entries remain,
 	// so running uninstall again can find and retry them.
 	var files []string
@@ -84,6 +105,14 @@ func (a *app) uninstall(args []string) int {
 		files = append(files, fileFamily(a.Config.ProfilesPath)...)
 	}
 	files = append(files, fileFamily(a.Config.ConfigPath)...)
+	if a.Config.ProfilesPath != "" {
+		cache := usage.PathFor(a.Config.ProfilesPath)
+		files = append(files, fileFamily(cache)...)
+		files = append(files, usage.LockFor(cache))
+	}
+	if !keepStatuslineBackup && a.Config.ProfilesPath != "" {
+		files = append(files, a.backupPath())
+	}
 	files = append(files, u.LockPath)
 	for _, path := range files {
 		if path == "" {

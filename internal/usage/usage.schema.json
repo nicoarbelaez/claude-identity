@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cid usage.json",
+  "type": "object",
+  "required": ["schemaVersion", "profiles"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["fetchedAt", "windows"],
+        "properties": {
+          "fetchedAt": { "type": "string" },
+          "windows": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["percentUsed", "resetsAt"],
+              "properties": {
+                "percentUsed": { "type": "number", "minimum": 0 },
+                "resetsAt": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

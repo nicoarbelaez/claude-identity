@@ -63,6 +63,9 @@ type Service struct {
 	Live        claudecfg.Store
 	LockPath    string
 	LockTimeout time.Duration
+	// CCLocks, when set, is held (after the cid lock) around every live
+	// credential write so a Claude Code token refresh cannot interleave.
+	CCLocks CCLocker
 
 	// activeLookup overrides Profiles.Active in tests; nil means use the store.
 	activeLookup func() (profile.Profile, error)
@@ -263,7 +266,7 @@ func (s *Service) Relogin(arg string, src Source) (ReloginResult, error) {
 		}
 		isActive := aerr == nil && active.Name == p.Name
 		if isActive {
-			if err := s.replaceLive(b); err != nil {
+			if err := s.holdCC(func() error { return s.replaceLive(b) }); err != nil {
 				return err
 			}
 			res.LiveUpdated = true
@@ -284,14 +287,49 @@ func (s *Service) Relogin(arg string, src Source) (ReloginResult, error) {
 // leave Claude Code logged out.
 func (s *Service) replaceLive(b credentials.Bundle) error {
 	prev, rerr := s.Live.Read()
+	return s.writeVerified(b, prev, rerr == nil)
+}
+
+// RollbackError means a live write failed verification and the previous login
+// could not be put back either, so Claude Code may need a new /login. Err is
+// the write or verify failure and Rollback is why the restore failed.
+type RollbackError struct{ Err, Rollback error }
+
+func (e *RollbackError) Error() string {
+	return fmt.Sprintf("%v; restoring the previous login also failed (%v): the live login may need /login", e.Err, e.Rollback)
+}
+
+func (e *RollbackError) Unwrap() []error { return []error{e.Err, e.Rollback} }
+
+// writeVerified writes b to the live store and verifies it. When that fails and
+// the previous live login prev was readable, it is written back so a bad write
+// does not leave Claude Code logged out or on the wrong account. The original
+// failure is returned, wrapped in a RollbackError if the restore failed too.
+func (s *Service) writeVerified(b, prev credentials.Bundle, hasPrev bool) error {
 	err := s.Live.Write(b)
 	if err == nil {
 		err = s.verify(b)
 	}
-	if err != nil && rerr == nil {
-		err = errors.Join(err, s.Live.Write(prev))
+	if err == nil || !hasPrev {
+		return err
+	}
+	if rerr := s.Live.Write(prev); rerr != nil {
+		return &RollbackError{Err: err, Rollback: rerr}
 	}
 	return err
+}
+
+// CCLocker holds Claude Code's own credential and config locks around fn.
+type CCLocker interface {
+	Hold(fn func() error) error
+}
+
+// holdCC runs fn under Claude Code's locks, or directly when none are set.
+func (s *Service) holdCC(fn func() error) error {
+	if s.CCLocks == nil {
+		return fn()
+	}
+	return s.CCLocks.Hold(fn)
 }
 
 // Remove deletes the profile identified by arg (index or name) together with
@@ -406,9 +444,11 @@ func (s *Service) store(name string, b credentials.Bundle) error {
 func (s *Service) Switch(arg string) (Result, error) {
 	var res Result
 	err := s.WithLock(func() error {
-		var err error
-		res, err = s.switchTo(arg)
-		return err
+		return s.holdCC(func() error {
+			var err error
+			res, err = s.switchTo(arg)
+			return err
+		})
 	})
 	return res, err
 }
@@ -426,18 +466,29 @@ func (s *Service) switchTo(arg string) (Result, error) {
 
 	res := Result{To: target}
 	if hasLive {
+		// Guarded capture of the outgoing login. The owner comes from the live
+		// oauthAccount email, never from tokens. A foreign account is refused
+		// (ErrUnknownLiveAccount) and a wiped one is never stored, so neither
+		// can overwrite a profile's vault copy.
+		wiped := live.Wiped()
 		owner, err := s.liveOwner(live.Email())
-		if err != nil {
-			return Result{}, err
-		}
-		if err := s.store(owner.Name, live); err != nil {
+		switch {
+		case err == nil:
+		case wiped && errors.Is(err, ErrUnknownLiveAccount):
+			// Nothing worth keeping and no known owner: carry on.
+		default:
 			return Result{}, err
 		}
 		res.From = owner
-		// Already live and active: nothing to write (the vault copy was refreshed).
-		if active, aerr := s.Profiles.Active(); aerr == nil && active.Name == target.Name && owner.Name == target.Name {
-			res.NoOp = true
-			return res, nil
+		if !wiped {
+			if err := s.store(owner.Name, live); err != nil {
+				return Result{}, err
+			}
+			// Already live and active: nothing to write (the vault copy was refreshed).
+			if active, aerr := s.Profiles.Active(); aerr == nil && active.Name == target.Name && owner.Name == target.Name {
+				res.NoOp = true
+				return res, nil
+			}
 		}
 	}
 
@@ -445,10 +496,7 @@ func (s *Service) switchTo(arg string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := s.Live.Write(next); err != nil {
-		return Result{}, err
-	}
-	if err := s.verify(next); err != nil {
+	if err := s.writeVerified(next, live, hasLive); err != nil {
 		return Result{}, err
 	}
 	if err := s.Profiles.SetActive(target.Name); err != nil {

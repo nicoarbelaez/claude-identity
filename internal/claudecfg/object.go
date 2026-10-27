@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/nicoarbelaez/claude-identity/internal/fsutil"
 )
 
 var errMalformed = errors.New("malformed JSON object")
@@ -137,7 +139,7 @@ func writeAtomic(path string, data []byte, rename func(string, string) error) er
 		return fail(fmt.Errorf("close temp file: %w", err))
 	}
 	if rename == nil {
-		rename = os.Rename
+		rename = fsutil.Rename
 	}
 	if err := rename(name, path); err != nil {
 		return fail(fmt.Errorf("replace %s: %w", filepath.Base(path), err))

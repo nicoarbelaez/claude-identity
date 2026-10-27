@@ -64,7 +64,7 @@ func WriteAtomic(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return fail(fmt.Errorf("close temp file: %w", err))
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := Rename(tmpName, path); err != nil {
 		return fail(fmt.Errorf("replace %s: %w", filepath.Base(path), err))
 	}
 	syncDir(dir)

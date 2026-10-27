@@ -70,6 +70,7 @@ func (a *app) hook() int {
 	d := a.Deps
 	d.Stdout, d.Stderr = &out, &errOut
 	d.Quiet = true
+	d.Color = false // the captured output is shown as plain text inside Claude Code
 	d.Login = hookLogin(d.Login)
 	if Run(d, args) != exitOK {
 		return a.context(hookFailed + out.String() + errOut.String())
@@ -91,9 +92,9 @@ func hookLogin(r login.Runner) login.Runner {
 }
 
 func validHookArgs(args []string) bool {
-	if len(args) > 0 { // no recursion; uninstall and update are terminal-only
+	if len(args) > 0 { // no recursion; uninstall, update and statusline are terminal-only
 		switch strings.ToLower(args[0]) {
-		case "hook", "uninstall", "update":
+		case "hook", "uninstall", "update", "statusline":
 			return false
 		}
 	}

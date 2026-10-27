@@ -22,7 +22,7 @@ var errNoOAuthBlock = errors.New("bundle has no OAuth credentials to write")
 // macOS without a Keychain item) and the account block in .claude.json.
 type FileStore struct {
 	paths  Paths
-	rename func(oldpath, newpath string) error // test seam; nil means os.Rename
+	rename func(oldpath, newpath string) error // test seam; nil means fsutil.Rename
 }
 
 // NewFileStore returns a FileStore for the given paths.

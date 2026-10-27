@@ -20,6 +20,8 @@ const (
 	UnknownProfile     Key = "error.unknown_profile"
 	LiveAccountUnknown Key = "error.live_account_unknown"
 	LockTimeout        Key = "error.lock_timeout"
+	ClaudeBusy         Key = "error.claude_busy"
+	SwitchRolledBack   Key = "error.switch_rollback_failed"
 	TokenExpired       Key = "error.token_expired"
 	RemoteControlWarn  Key = "warn.remote_control_disconnected"
 	RestartHint        Key = "hint.restart"
@@ -100,6 +102,8 @@ var catalogEN = map[Key]string{
 	UnknownProfile:     "Unknown profile %q. Run `cid list` to see available profiles.",
 	LiveAccountUnknown: "The logged-in account is not saved as a profile. Run `cid add <name>` to save it first.",
 	LockTimeout:        "Timed out waiting for another cid process to finish. Try again in a moment.",
+	ClaudeBusy:         "Claude Code is updating its login right now; try again in a few seconds.",
+	SwitchRolledBack:   "The switch failed and the previous login could not be restored; run `/login` in Claude Code.",
 	TokenExpired:       "The saved login for %q has expired. Run `/login` in Claude Code, then `cid add %s` to update it.",
 	RemoteControlWarn:  "Warning: switching accounts disconnects Remote Control. Reconnect it after the switch.",
 	RestartHint:        "If Claude Code still shows the previous account, restart it with `claude --continue`.",
@@ -176,6 +180,10 @@ var catalogEN = map[Key]string{
   cid config set <key> <value>
                             Change a setting (for example: language es)
   cid config unset <key>    Restore a setting to its default
+  cid statusline [-- <command> [args...]]
+                            Record plan usage from the Claude Code status line, then run the command
+  cid statusline install    Wrap the Claude Code status line so usage is recorded
+  cid statusline uninstall  Restore the status line that was there before
   cid uninstall [--yes]     Remove all cid data (profiles, stored credentials, PATH entry)
   cid update                Update cid and the account-switch plugin to the latest release
   cid version               Show the version
@@ -196,6 +204,8 @@ var catalogES = map[Key]string{
 	UnknownProfile:     "Perfil %q desconocido. Ejecuta `cid list` para ver los perfiles disponibles.",
 	LiveAccountUnknown: "La cuenta con sesión iniciada no está guardada como perfil. Ejecuta `cid add <nombre>` para guardarla primero.",
 	LockTimeout:        "Se agotó el tiempo de espera de otro proceso de cid. Inténtalo de nuevo en un momento.",
+	ClaudeBusy:         "Claude Code está actualizando su sesión ahora mismo; inténtalo de nuevo en unos segundos.",
+	SwitchRolledBack:   "El cambio falló y no se pudo restaurar la sesión anterior; ejecuta `/login` en Claude Code.",
 	TokenExpired:       "El inicio de sesión guardado de %q ha caducado. Ejecuta `/login` en Claude Code y luego `cid add %s` para actualizarlo.",
 	RemoteControlWarn:  "Advertencia: cambiar de cuenta desconecta Remote Control. Vuelve a conectarlo después del cambio.",
 	RestartHint:        "Si Claude Code aún muestra la cuenta anterior, reinícialo con `claude --continue`.",
@@ -272,6 +282,10 @@ var catalogES = map[Key]string{
   cid config set <clave> <valor>
                             Cambia un ajuste (por ejemplo: language es)
   cid config unset <clave>  Restaura un ajuste a su valor predeterminado
+  cid statusline [-- <comando> [args...]]
+                            Registra el uso del plan desde la línea de estado de Claude Code y ejecuta el comando
+  cid statusline install    Envuelve la línea de estado de Claude Code para registrar el uso
+  cid statusline uninstall  Restaura la línea de estado que había antes
   cid uninstall [--yes]     Elimina todos los datos de cid (perfiles, credenciales guardadas, entrada del PATH)
   cid update                Actualiza cid y el plugin account-switch a la última versión
   cid version               Muestra la versión

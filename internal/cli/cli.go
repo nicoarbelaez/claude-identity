@@ -10,13 +10,16 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
+	"github.com/nicoarbelaez/claude-identity/internal/cclock"
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/login"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/version"
 )
 
@@ -45,6 +48,13 @@ type Swapper interface {
 	Status(name string, active bool) credentials.Status
 }
 
+// UsagePort is the usage cache as the CLI uses it. A nil port disables it.
+type UsagePort interface {
+	All() (map[string]usage.Entry, error)
+	Record(profile string, windows map[string]usage.Window, now time.Time) error
+	Forget(profile string) error
+}
+
 // Config describes where cid and Claude Code keep their data (for `cid config`).
 type Config struct {
 	ProfilesPath string
@@ -61,6 +71,10 @@ type Deps struct {
 	Swap     Swapper
 	Lang     i18n.Lang
 	Config   Config
+	// Usage is the per-profile usage cache; nil disables recording and cleanup.
+	Usage UsagePort
+	// Statusline holds the collaborators of `cid statusline`.
+	Statusline StatuslineDeps
 	// Settings is the config.json store behind `cid config`; nil disables it.
 	Settings SettingsPort
 	// Uninstall holds the collaborators of `cid uninstall`.
@@ -76,6 +90,11 @@ type Deps struct {
 	// RemoveAll deletes the temporary login directory; nil means os.RemoveAll.
 	// Tests inject a failing one.
 	RemoveAll func(path string) error
+	// Now returns the current time; nil means time.Now (or Statusline.Now).
+	Now func() time.Time
+	// Color enables ANSI colors in `cid list`. Set it only when Stdout is a
+	// terminal (see UseColor); the hook leaves it off.
+	Color bool
 	// Quiet suppresses progress lines such as "Starting the login..." (hook mode).
 	Quiet bool
 	// GOOS is the operating system; empty means runtime.GOOS. Tests set it.
@@ -105,6 +124,8 @@ func Run(d Deps, args []string) int {
 		return a.current(rest)
 	case "config":
 		return a.config(rest)
+	case "statusline":
+		return a.statusline(rest)
 	case "uninstall":
 		return a.uninstall(rest)
 	case "update":
@@ -163,45 +184,6 @@ func parse(name string, args []string, withJSON bool, positional int) (asJSON bo
 		return false, nil, false
 	}
 	return asJSON, fs.Args(), true
-}
-
-func (a *app) list(args []string) int {
-	asJSON, _, ok := parse("list", args, true, 0)
-	if !ok {
-		return a.usageError("")
-	}
-	ps, err := a.Profiles.List()
-	if err != nil {
-		return a.fail(err, "")
-	}
-	activeName, err := a.activeName()
-	if err != nil {
-		return a.fail(err, "")
-	}
-	if asJSON {
-		out := make([]jsonProfile, 0, len(ps))
-		for _, p := range ps {
-			active := p.Name == activeName
-			out = append(out, toJSON(p, active, a.Swap.Status(p.Name, active)))
-		}
-		return a.writeJSON(out)
-	}
-	if len(ps) == 0 {
-		a.printf(a.Stdout, "%s\n", a.t(i18n.ListEmpty))
-		return exitOK
-	}
-	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileListHeader))
-	for _, p := range ps {
-		marker := " "
-		active := p.Name == activeName
-		if active {
-			marker = "*"
-		}
-		status := a.statusLabel(a.Swap.Status(p.Name, active))
-		line := fmt.Sprintf("%s %d  %s  %s  %s", marker, p.Index, p.Name, p.Email, status)
-		a.printf(a.Stdout, "%s\n", strings.TrimRight(line, " "))
-	}
-	return exitOK
 }
 
 // statusLabel returns the localized, short label for a token status.
@@ -349,6 +331,9 @@ func (a *app) remove(args []string) int {
 		}
 		return a.fail(err, ref)
 	}
+	if a.Usage != nil {
+		_ = a.Usage.Forget(p.Name) // best effort: a stale reading is harmless
+	}
 	a.printf(a.Stdout, "%s\n", a.t(i18n.ProfileRemoved, p.Name))
 	return exitOK
 }
@@ -370,6 +355,8 @@ type jsonProfile struct {
 	Email  string `json:"email"`
 	Active bool   `json:"active"`
 	Status string `json:"status"`
+	// Usage is the last plan-usage reading; omitted when none was recorded.
+	Usage *jsonUsage `json:"usage,omitempty"`
 }
 
 func toJSON(p profile.Profile, active bool, status credentials.Status) jsonProfile {
@@ -394,6 +381,7 @@ func (a *app) fail(err error, arg string) int {
 	var mismatch *swap.EmailMismatchError
 	var noEmail *swap.NoStoredEmailError
 	var notUpdated *swap.ProfileNotUpdatedError
+	var rollback *swap.RollbackError
 	switch {
 	case errors.As(err, &noEmail):
 		msg = a.t(i18n.ReloginNoEmail, noEmail.Name, noEmail.Name)
@@ -413,6 +401,10 @@ func (a *app) fail(err error, arg string) int {
 		msg = a.t(i18n.RemoveActive, arg)
 	case errors.Is(err, swap.ErrUnknownLiveAccount):
 		msg = a.t(i18n.LiveAccountUnknown)
+	case errors.Is(err, cclock.ErrTimeout):
+		msg = a.t(i18n.ClaudeBusy)
+	case errors.As(err, &rollback):
+		msg = a.t(i18n.SwitchRolledBack)
 	case errors.Is(err, swap.ErrLockTimeout):
 		msg = a.t(i18n.LockTimeout)
 	case errors.Is(err, claudecfg.ErrNoCredentials):

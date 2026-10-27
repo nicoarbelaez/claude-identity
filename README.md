@@ -156,7 +156,7 @@ Inside Claude Code, `/account add` and `/account relogin` run the same login fro
 
 | Command | What it does |
 |---------|--------------|
-| `cid` / `cid list [--json]` | List profiles (index, name, email, token status); the active one is marked with `*`. |
+| `cid` / `cid list [--json]` | List profiles (index, name, email, token status) with 5h and week usage bars when a reading exists; the active one is marked with `●`. See [Usage per account](#usage-per-account). |
 | `cid <n\|name>` / `cid switch <n\|name>` | Hot-swap to a profile. Remote Control sessions disconnect after a swap. |
 | `cid add <name> [--force] [--console] [--sso]` | Log in through Claude Code in an isolated config directory and save the account as a profile. The live login and the active profile are not changed. Re-run it to refresh a profile. It refuses to replace a profile that holds a different account unless you pass `--force`, and never saves an account that is already stored under another name. |
 | `cid add <name> --current [--force]` | Save the current Claude Code login as a profile and mark it active (run `/login` first). Same guards as above. |
@@ -167,14 +167,51 @@ Inside Claude Code, `/account add` and `/account relogin` run the same login fro
 | `cid config get <key> [--json]` | Print one setting value. Exit `2` for an unknown key. |
 | `cid config set <key> <value>` | Validate and save a setting in `config.json`. Exit `2` for an unknown key or an invalid value. |
 | `cid config unset <key>` | Remove a setting from `config.json` so its default applies again. |
+| `cid statusline [install\|uninstall]` | Record plan usage from Claude Code's status line input. `install` wraps your current status line and `uninstall` restores it exactly. See [Usage per account](#usage-per-account). |
 | `cid update` | Update the `cid` binary (checksum verified) and the `account-switch` plugin to the latest release. See [Updating](#updating). |
 | `cid version` | Show the version, and a note when a newer release exists. |
 
-The text output of `cid list` and `cid current` is meant for people and may change between versions; scripts should use `--json`. `--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). Exit codes: `0` success, `1` runtime error, `2` usage error.
+The text output of `cid list` and `cid current` is meant for people and may change between versions; scripts should use `--json`. `--json` prints stable objects with `index`, `name`, `email`, `active` and `status` (never tokens). `cid list --json` adds a `usage` object to each profile that has a recorded reading (the key is left out when there is none): `{"fetchedAt": "2026-03-04T09:58:30Z", "ageSeconds": 90, "windows": [{"kind": "five_hour", "percentUsed": 62, "resetsAt": "2026-03-04T12:47:00Z"}]}`. `kind` is `five_hour` or `seven_day`, and `windows` lists only the windows whose reset is still ahead (it can be empty). Exit codes: `0` success, `1` runtime error, `2` usage error.
 
 ### Token status
 
 The status column (and the `status` JSON field) is one of `ok`, `access_expired` (Claude Code refreshes it on next use), `needs_login` (no refresh token; run `cid relogin`) or `unknown`. It is computed locally from the expiry time and the presence of a refresh token, without contacting Anthropic, so it cannot prove a token is still accepted. A saved copy can also go stale if the same account is used on another machine; if a switch then asks you to sign in again, run `cid relogin <name>`.
+
+## Usage per account
+
+`cid list` shows how much of each account's plan you have used:
+
+```
+Profiles:
+● 1  work      me@example.com
+     5h    ██████████░░░░░░   62%  resets 2h 47m
+     week  ███░░░░░░░░░░░░░   18%  resets 5d 3h
+  2  personal  you@example.com  · 3h ago
+     5h    ░░░░░░░░░░░░░░░░    0%  resets 4h 10m
+     week  ███████░░░░░░░░░   41%  resets 1d 6h
+```
+
+Each account gets a 5-hour bar and a weekly bar, the time until each window resets, and, when the reading is older than a few minutes, how long ago it was taken (`3h ago`). Windows that have already reset are not shown. Bars turn yellow and red as they fill when the terminal supports color (`NO_COLOR` turns it off).
+
+**Where the data comes from.** Claude Code passes `rate_limits` to its status line command on stdin. It is present only for Pro and Max accounts, and only after the first response of a session. `cid statusline` reads that input and stores the numbers for the active account. `cid` never calls Anthropic and never reads token values for this.
+
+**Setup.**
+
+```sh
+cid statusline install     # wrap the current status line
+cid statusline uninstall   # put it back exactly as it was
+```
+
+`install` wraps your existing status line command: it still runs with the same input and its output is unchanged. `uninstall` restores the previous setting byte for byte. `cid uninstall` also unwraps it. While the active account has no reading and the wrapper is not installed, `cid list` prints a one-line hint to run `cid statusline install`.
+
+**Windows.** If the previous status line command contains backslashes or shell metacharacters, `install` refuses and changes nothing. Use forward slashes in that command (for example `C:/tools/line.exe`) and run `install` again.
+
+## Switching safely
+
+- `cid` waits for Claude Code's own credential locks (`.oauth_refresh.lock`, `.claude.lock`, `.claude.json.lock`) before it reads or writes a login, so a switch does not collide with a token refresh. If a lock stays busy, the switch fails with one line and changes nothing.
+- It refuses to store an empty or unknown login into a profile.
+- If verification fails after a switch, it restores the previous login.
+- A login counts as expired 5 minutes before its real expiry time, so you are not switched into a token that dies right away.
 
 ## Configuration
 

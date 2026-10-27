@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -94,6 +96,25 @@ func TestUninstallYesRemovesEverything(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestUninstallRemovesUsageFiles(t *testing.T) {
+	r, _, _ := uninstallRig(t)
+	cfgDir := filepath.Dir(r.deps.Config.ProfilesPath)
+	w := map[string]usage.Window{usage.FiveHour: {PercentUsed: 5, ResetsAt: time.Now().Add(time.Hour)}}
+	if err := r.usage.Record("a", w, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	cache := usage.PathFor(r.deps.Config.ProfilesPath)
+	if !exists(cache) || !exists(usage.LockFor(cache)) {
+		t.Fatal("precondition: usage cache and lock should exist after Record")
+	}
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if exists(cache) || exists(usage.LockFor(cache)) || exists(cfgDir) {
+		t.Errorf("usage files or config dir left behind in %s", cfgDir)
 	}
 }
 
@@ -259,5 +280,39 @@ func TestHookRejectsUninstall(t *testing.T) {
 	}
 	if _, err := r.vault.Get("a"); err != nil {
 		t.Error("hook must not run uninstall")
+	}
+}
+
+func TestUninstallKeepsStatuslineBackupWhenSettingsAreUnreadable(t *testing.T) {
+	r, _, _ := uninstallRig(t)
+	r.deps.Statusline = StatuslineDeps{Executable: "/opt/cid/cid"}
+	r.writeSettings(prevSettings)
+	if code := r.run("statusline", "install"); code != 0 {
+		t.Fatal(r.stderr.String())
+	}
+	r.writeSettings(`{"statusLine": `) // the user's edit left settings.json invalid
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if !exists(r.backupPath()) {
+		t.Fatal("the saved status line was deleted although it could not be restored")
+	}
+	if want := r.msg(i18n.StatuslineBackupKept, r.settingsPath(), r.backupPath()); !strings.Contains(r.stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to contain %q", r.stderr, want)
+	}
+	if b, _ := os.ReadFile(r.settingsPath()); string(b) != `{"statusLine": ` {
+		t.Errorf("settings.json was modified: %q", b)
+	}
+}
+
+func TestUninstallWithBadSettingsAndNoBackupStaysQuiet(t *testing.T) {
+	r, _, _ := uninstallRig(t)
+	r.deps.Statusline = StatuslineDeps{Executable: "/opt/cid/cid"}
+	r.writeSettings(`not json`)
+	if code := r.run("uninstall", "--yes"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	if r.stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want nothing: there was no saved status line", r.stderr)
 	}
 }

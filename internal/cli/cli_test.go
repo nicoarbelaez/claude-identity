@@ -4,15 +4,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/nicoarbelaez/claude-identity/internal/cclock"
 	"github.com/nicoarbelaez/claude-identity/internal/claudecfg"
 	"github.com/nicoarbelaez/claude-identity/internal/credentials"
 	"github.com/nicoarbelaez/claude-identity/internal/i18n"
 	"github.com/nicoarbelaez/claude-identity/internal/profile"
 	"github.com/nicoarbelaez/claude-identity/internal/swap"
+	"github.com/nicoarbelaez/claude-identity/internal/usage"
 	"github.com/nicoarbelaez/claude-identity/internal/vault"
 )
 
@@ -23,6 +27,7 @@ type rig struct {
 	live   *claudecfg.FileStore
 	prof   *profile.Store
 	vault  *vault.MemoryVault
+	usage  *usage.Store
 	deps   Deps
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
@@ -38,10 +43,12 @@ func newRig(t *testing.T) *rig {
 	profilesPath := filepath.Join(dir, "cid", "profiles.json")
 	p := profile.NewStore(profilesPath)
 	svc := swap.New(p, v, live, filepath.Join(dir, "cid", "cid.lock"))
-	r := &rig{t: t, live: live, prof: p, vault: v, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	us := usage.NewStore(usage.PathFor(profilesPath))
+	r := &rig{t: t, live: live, prof: p, vault: v, usage: us, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
 	r.deps = Deps{
 		Profiles: p,
 		Swap:     svc,
+		Usage:    us,
 		Lang:     i18n.EN,
 		GOOS:     "linux",
 		Config:   Config{ProfilesPath: profilesPath, ClaudeDir: filepath.Dir(paths.Credentials)},
@@ -97,13 +104,14 @@ func TestListEmpty(t *testing.T) {
 func TestListShowsIndexNameEmailAndActiveMarker(t *testing.T) {
 	r := newRig(t)
 	r.twoProfiles()
+	r.deps.Usage = nil // no usage cache: no usage lines and no hint
 	if code := r.run(); code != 0 {
 		t.Fatalf("exit %d: %s", code, r.stderr)
 	}
 	want := []string{
 		r.msg(i18n.ProfileListHeader),
 		"  1  a  a@example.com  " + r.msg(i18n.StatusAccessExpired),
-		"* 2  b  b@example.com  " + r.msg(i18n.StatusAccessExpired),
+		"● 2  b  b@example.com  " + r.msg(i18n.StatusAccessExpired),
 	}
 	got := strings.Split(strings.TrimRight(r.stdout.String(), "\n"), "\n")
 	if strings.Join(got, "|") != strings.Join(want, "|") {
@@ -124,7 +132,7 @@ func TestListJSON(t *testing.T) {
 	if err := json.Unmarshal(r.stdout.Bytes(), &got); err != nil {
 		t.Fatalf("invalid json %q: %v", r.stdout, err)
 	}
-	want := []jsonProfile{{1, "a", "a@example.com", false, "access_expired"}, {2, "b", "b@example.com", true, "access_expired"}}
+	want := []jsonProfile{{Index: 1, Name: "a", Email: "a@example.com", Status: "access_expired"}, {Index: 2, Name: "b", Email: "b@example.com", Active: true, Status: "access_expired"}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
@@ -332,6 +340,21 @@ func TestRemove(t *testing.T) {
 	}
 }
 
+func TestRemoveForgetsUsageOfThatProfileOnly(t *testing.T) {
+	r := newRig(t)
+	r.twoProfiles()
+	w := map[string]usage.Window{usage.FiveHour: {PercentUsed: 5, ResetsAt: time.Now().Add(time.Hour)}}
+	_ = r.usage.Record("a", w, time.Now())
+	_ = r.usage.Record("b", w, time.Now())
+	if code := r.run("remove", "a"); code != 0 {
+		t.Fatalf("exit %d: %s", code, r.stderr)
+	}
+	all, _ := r.usage.All()
+	if _, ok := all["a"]; ok || len(all) != 1 {
+		t.Errorf("usage after remove = %+v, want only b", all)
+	}
+}
+
 func TestRemoveErrors(t *testing.T) {
 	r := newRig(t)
 	r.twoProfiles()
@@ -392,7 +415,7 @@ func TestCurrent(t *testing.T) {
 	if err := json.Unmarshal(r.stdout.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got != (jsonProfile{2, "b", "b@example.com", true, "access_expired"}) {
+	if got != (jsonProfile{Index: 2, Name: "b", Email: "b@example.com", Active: true, Status: "access_expired"}) {
 		t.Errorf("got %+v", got)
 	}
 	if out := r.run("current"); out != 0 || !strings.Contains(r.stdout.String(), r.msg(i18n.CurrentStatus, r.msg(i18n.StatusAccessExpired))) {
@@ -494,6 +517,8 @@ func TestRuntimeErrorMapping(t *testing.T) {
 	}{
 		{"unknown live account", swap.ErrUnknownLiveAccount, func(r *rig) string { return r.msg(i18n.LiveAccountUnknown) }},
 		{"lock timeout", swap.ErrLockTimeout, func(r *rig) string { return r.msg(i18n.LockTimeout) }},
+		{"claude code lock", fmt.Errorf("take lock: %w", cclock.ErrTimeout), func(r *rig) string { return r.msg(i18n.ClaudeBusy) }},
+		{"rollback failed", &swap.RollbackError{Err: swap.ErrVerify, Rollback: errors.New("disk")}, func(r *rig) string { return r.msg(i18n.SwitchRolledBack) }},
 		{"no credentials", claudecfg.ErrNoCredentials, func(r *rig) string { return r.msg(i18n.NoLiveLogin) }},
 		{"generic", errors.New("boom"), func(r *rig) string { return r.msg(i18n.GenericError, "boom") }},
 	}

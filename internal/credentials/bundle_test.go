@@ -89,6 +89,9 @@ func TestBundleStatus(t *testing.T) {
 	}{
 		{"valid", `{"refreshToken":"r","expiresAt":2000000}`, StatusOK},
 		{"access expired", `{"refreshToken":"r","expiresAt":500000}`, StatusAccessExpired},
+		{"inside the 5 minute buffer", `{"refreshToken":"r","expiresAt":1200000}`, StatusAccessExpired},
+		{"exactly at the buffer edge", `{"refreshToken":"r","expiresAt":1300000}`, StatusAccessExpired},
+		{"just outside the buffer", `{"refreshToken":"r","expiresAt":1300001}`, StatusOK},
 		{"empty refresh token, future expiry", `{"refreshToken":"","expiresAt":2000000}`, StatusNeedsLogin},
 		{"missing refresh token", `{"expiresAt":2000000}`, StatusNeedsLogin},
 		{"missing expiry", `{"refreshToken":"r"}`, StatusUnknown},
@@ -104,6 +107,29 @@ func TestBundleStatus(t *testing.T) {
 			b := Bundle{ClaudeAIOAuth: json.RawMessage(tt.oauth)}
 			if got := b.Status(now); got != tt.want {
 				t.Errorf("Status() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBundleWiped(t *testing.T) {
+	tests := []struct {
+		name  string
+		oauth string
+		want  bool
+	}{
+		{"both tokens empty", `{"accessToken":"","refreshToken":"","expiresAt":0}`, true},
+		{"empty object", `{}`, true},
+		{"json null", `null`, true},
+		{"unreadable", `nope`, true},
+		{"access only", `{"accessToken":"a","refreshToken":""}`, false},
+		{"refresh only", `{"accessToken":"","refreshToken":"r"}`, false},
+		{"both", `{"accessToken":"a","refreshToken":"r"}`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (Bundle{ClaudeAIOAuth: json.RawMessage(tt.oauth)}).Wiped(); got != tt.want {
+				t.Errorf("Wiped() = %v, want %v", got, tt.want)
 			}
 		})
 	}
