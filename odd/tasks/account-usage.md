@@ -48,7 +48,7 @@ Out:
 |----|--------|------|-------|--------|
 | U1 | [x] | `internal/usage`: per-profile cache (schema, atomic write, lock, recovery), render helpers (bar, countdown from `resets_at`, age note, drop passed windows) | bounded writer | 46b66ef, 02aafce |
 | U2 | [x] | `cid statusline` record and passthrough, plus `install`/`uninstall` of the wrapper in user `settings.json` (backup, idempotent, keeps the user's command) | bounded writer | 5dd56af, 7f7e0e6 |
-| U3 | [ ] | `cid list` and `/account` rendering with numbered rows, bars and colors; `--json` usage fields; `/account <n>` switch confirmed | bounded writer | |
+| U3 | [x] | `cid list` and `/account` rendering with numbered rows, bars and colors; `--json` usage fields; `/account <n>` switch confirmed | bounded writer | 47df9c7, 49329c4, 410301d, dd4f3ad, f561267, da89299 |
 | U4 | [ ] | Switch safety: Claude Code lock directories, guarded capture (skip wiped/foreign), rollback on failed verify, 5-minute expiry buffer, Windows rename retry | bounded writer | |
 | U5 | [ ] | Docs: README (usage, status line setup, safety notes), SKILL.md hint, help text | bounded writer | |
 
@@ -84,3 +84,11 @@ Route evidence: 2+ non-trivial files per task, so a writer. Planned slices: U1+U
   - Install refuses commands that use shell syntax (`$ \` | ; & < > ( ) * ? [ ] { } ~ \`), because a split-and-requote round trip would change their meaning.
   - `cid uninstall` also restores the previous status line, so the user is never left with a wrapper that points at a deleted binary.
   - The hook rejects `statusline`.
+- U3 done (`47df9c7`, `49329c4`, `410301d`, `dd4f3ad`, `f561267`, `da89299`):
+  - `cid` and `cid list` share one renderer (`internal/cli/list.go`): a marker, the index, aligned name and email columns, then a note with the status (only when not ok) and the reading's age, then one line per visible window (`5h`, `week`) with bar, percent and "resets <countdown>". Windows past their reset are dropped.
+  - The hint to run `cid statusline install` is printed once, under the active row, only when the active profile never had a reading and the wrapper is not installed (or settings.json cannot be read, in which case nothing is guessed).
+  - Colors come from `Deps.Color`, set in main by `cli.UseColor(os.Stdout)` (TTY via golang.org/x/term, no `NO_COLOR`, no `TERM=dumb`; on Windows also a VT hint such as `WT_SESSION`/`TERM`). The hook forces `Color=false`, and a test checks its output has no ANSI.
+  - `cid list --json` adds `usage` ({fetchedAt, ageSeconds, windows[{kind, percentUsed, resetsAt}]}, visible windows only) and leaves the key out when nothing was recorded. Documented in the README JSON section only.
+  - `usage.AgeOf` returns the age as a number and a unit so the age note is translated through the catalog. `UsagePort` gained `All()`.
+  - `/account <n>` and `/account <name>` switch inside the hook with a block decision (no model turn); a numeric test was added next to the existing name one.
+  - Review follow-ups from U1+U2: (1) the wrapped command now runs first while the recording runs alongside it, waited for at most 750 ms (tests: order, and a locked store changes neither output nor exit code); (2) `cid uninstall` keeps `statusline.backup.json` and warns in one line when settings.json is unreadable; (3) the backup's `hadStatusLine` is a pointer so a missing field is not read as "there was none", and the zero value of the restore result is now `restoreFailed`; (4) the quoting comment is narrowed to POSIX shells and a test round-trips the words through a real `sh` (skipped when none).
