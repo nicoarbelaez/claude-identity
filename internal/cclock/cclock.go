@@ -39,7 +39,7 @@ const (
 )
 
 // ErrTimeout means a Claude Code lock stayed held for the whole timeout.
-var ErrTimeout = errors.New("Claude Code is holding its login lock; try again in a few seconds")
+var ErrTimeout = errors.New("a Claude Code login lock is held; try again in a few seconds")
 
 // Options describes one lock acquisition. Zero fields take the defaults.
 type Options struct {

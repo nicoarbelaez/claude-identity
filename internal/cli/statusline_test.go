@@ -265,8 +265,8 @@ func TestHelperWrapped(t *testing.T) {
 		t.Skip("helper process")
 	}
 	b, _ := io.ReadAll(os.Stdin)
-	fmt.Fprint(os.Stdout, "got:"+string(b))
-	fmt.Fprint(os.Stderr, "err-line")
+	_, _ = fmt.Fprint(os.Stdout, "got:"+string(b))
+	_, _ = fmt.Fprint(os.Stderr, "err-line")
 	os.Exit(3)
 }
 
@@ -343,7 +343,7 @@ func TestStatuslineInstallWrapsExistingCommand(t *testing.T) {
 	}
 	b, _ := os.ReadFile(r.settingsPath())
 	theme, line, env := strings.Index(string(b), `"theme"`), strings.Index(string(b), `"statusLine"`), strings.Index(string(b), `"env"`)
-	if !(theme < line && line < env) {
+	if theme >= line || line >= env {
 		t.Errorf("key order changed:\n%s", b)
 	}
 	// settings.json.bak holds the file as it was before the change.
