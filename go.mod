@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/creativeprojects/go-selfupdate v1.7.0
-	github.com/gofrs/flock v0.13.1
+	github.com/gofrs/flock v0.13.2
 	github.com/mattn/go-shellwords v1.0.16
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/zalando/go-keyring v0.2.8
